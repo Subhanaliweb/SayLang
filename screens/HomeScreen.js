@@ -10,14 +10,17 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useLanguage();
+
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#006A4E', '#FFCE00']} // Green to Yellow gradient
+        colors={['#006A4E', '#FFCE00']}
         style={styles.gradient}
       >
         <ScrollView 
@@ -26,9 +29,9 @@ export default function HomeScreen({ navigation }) {
         >
           <View style={styles.header}>
             <Ionicons name="mic" size={60} color="#FFCE00" />
-            <Text style={styles.title}>Ewe Audio Collector</Text>
+            <Text style={styles.title}>{t('appTitle')}</Text>
             <Text style={styles.subtitle}>
-              Record your voice in Ewe for French sentences
+              {t('appSubtitle')}
             </Text>
           </View>
 
@@ -43,9 +46,9 @@ export default function HomeScreen({ navigation }) {
               >
                 <View style={styles.cardContent}>
                   <Ionicons name="create-outline" size={40} color="#FFCE00" />
-                  <Text style={styles.cardTitle}>Write Custom Text</Text>
+                  <Text style={styles.cardTitle}>{t('writeCustomText')}</Text>
                   <Text style={styles.cardDescription}>
-                    Write your own French sentence and record audio
+                    {t('writeCustomTextDesc')}
                   </Text>
                 </View>
               </LinearGradient>
@@ -61,9 +64,9 @@ export default function HomeScreen({ navigation }) {
               >
                 <View style={styles.cardContent}>
                   <Ionicons name="list-outline" size={40} color="#FFCE00" />
-                  <Text style={styles.cardTitle}>Suggested Texts</Text>
+                  <Text style={styles.cardTitle}>{t('suggestedTexts')}</Text>
                   <Text style={styles.cardDescription}>
-                    Choose from pre-written French sentences
+                    {t('suggestedTextsDesc')}
                   </Text>
                 </View>
               </LinearGradient>
@@ -72,7 +75,7 @@ export default function HomeScreen({ navigation }) {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              Your recordings help improve AI language models
+              {t('footerText')}
             </Text>
           </View>
         </ScrollView>

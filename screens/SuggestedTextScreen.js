@@ -15,12 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { initLocalDatabase, getCompletedTexts } from '../database/localDatabase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Import your JSON files
 import frenchTexts from '../data/french-texts.json';
 import eweTexts from '../data/ewe-texts.json';
 
 export default function SuggestedTextScreen({ navigation }) {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('french');
@@ -189,17 +191,17 @@ export default function SuggestedTextScreen({ navigation }) {
     };
   }, [filteredTexts, currentPage, ITEMS_PER_PAGE]);
 
-    const handleTextSelect = useCallback((textItem) => {  // Change parameter to full item
-      Speech.stop();
-      setSpeakingId(null);
-      
-      navigation.navigate('Recording', {
-        text: textItem.text,
-        textId: textItem.id,  // Add this line
-        isCustom: false,
-        language: selectedLanguage,
-      });
-    }, [navigation, selectedLanguage]);
+  const handleTextSelect = useCallback((textItem) => {  // Change parameter to full item
+    Speech.stop();
+    setSpeakingId(null);
+    
+    navigation.navigate('Recording', {
+      text: textItem.text,
+      textId: textItem.id,  // Add this line
+      isCustom: false,
+      language: selectedLanguage,
+    });
+  }, [navigation, selectedLanguage]);
 
   const handleSpeakText = useCallback(async (item) => {
     try {
@@ -293,6 +295,7 @@ export default function SuggestedTextScreen({ navigation }) {
     }
   }, [selectedLanguage]);
 
+  // FIXED: Added 't' to dependency array
   const renderTextItem = useCallback(({ item }) => (
     <View style={styles.textItem}>
       <View style={styles.textContent}>
@@ -330,7 +333,7 @@ export default function SuggestedTextScreen({ navigation }) {
                            speakingId === item.id ? "#D21034" : "#006A4E" 
                   }
                 ]}>
-                  {speakingId === item.id ? "Stop" : "Listen"}
+                  {speakingId === item.id ? t('sgstop') : t('sglisten')}
                 </Text>
               </TouchableOpacity>
 
@@ -349,14 +352,15 @@ export default function SuggestedTextScreen({ navigation }) {
           >
             <Ionicons name="mic" size={16} color="#D21034" />
             <Text style={[styles.miniButtonText, { color: "#D21034" }]}>
-              Record
+              {t('sgRecord')}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
     </View>
-  ), [speakingId, handleSpeakText, handleTextSelect, selectedLanguage, audioInitialized]);
+  ), [speakingId, handleSpeakText, handleTextSelect, selectedLanguage, audioInitialized, t]); // FIXED: Added 't'
 
+  // FIXED: Added 't' to dependency array
   const renderLanguageTab = useCallback((language) => (
     <TouchableOpacity
       key={language}
@@ -370,11 +374,12 @@ export default function SuggestedTextScreen({ navigation }) {
         styles.languageTabText,
         selectedLanguage === language && styles.selectedLanguageTabText
       ]}>
-        {language === 'french' ? 'French' : 'Ewe'}
+        {language === 'french' ? t('sgSelectedLanguage') : 'Ewe'}
       </Text>
     </TouchableOpacity>
-  ), [selectedLanguage, handleLanguageChange]);
+  ), [selectedLanguage, handleLanguageChange, t]); // FIXED: Added 't'
 
+  // FIXED: Added 't' to dependency array
   const renderFooter = useCallback(() => {
     if (!hasMore) {
       return (
@@ -388,24 +393,25 @@ export default function SuggestedTextScreen({ navigation }) {
 
     return (
       <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreTexts}>
-        <Text style={styles.loadMoreText}>Load More</Text>
+        <Text style={styles.loadMoreText}>{t('sgLoadMore')}</Text>
         <Ionicons name="chevron-down" size={16} color="#006A4E" />
       </TouchableOpacity>
     );
-  }, [hasMore, paginatedTexts.length, filteredTexts.length, loadMoreTexts]);
+  }, [hasMore, paginatedTexts.length, filteredTexts.length, loadMoreTexts, t]); // FIXED: Added 't'
 
+  // FIXED: Added 't' to dependency array
   const renderEmptyComponent = useCallback(() => (
     <View style={styles.emptyContainer}>
       <Ionicons name="search" size={50} color="#D21034" />
-      <Text style={styles.emptyText}>No texts found</Text>
+      <Text style={styles.emptyText}>{t('sgNoTextFound')}</Text>
       <Text style={styles.emptySubtext}>
         {debouncedSearchQuery 
-          ? "Try adjusting your search" 
-          : "Loading texts..."
+          ? t('sgSearchAdjust')
+          : t('sgNoTextFound')
         }
       </Text>
     </View>
-  ), [debouncedSearchQuery]);
+  ), [debouncedSearchQuery, t]); // FIXED: Added 't'
 
   return (
     <SafeAreaView style={styles.container}>
@@ -416,12 +422,12 @@ export default function SuggestedTextScreen({ navigation }) {
         <View style={styles.content}>
           <View style={styles.header}>
             <Ionicons name="list" size={50} color="#FFCE00" />
-            <Text style={styles.title}>Suggested Texts</Text>
+            <Text style={styles.title}>{t('sgTitle')}</Text>
             <Text style={styles.subtitle}>
-              Listen to or record {selectedLanguage === 'french' ? 'French' : 'Ewe'} sentences
+              {t('sgAppSubtitleBefore')} {selectedLanguage === 'french' ? t('sgSelectedLanguage') : 'Ewe'} {t('sgAppSubtitleAfter')}
             </Text>
             <Text style={styles.statsText}>
-              {filteredTexts.length} texts available ({allTexts.length - completedTextIds.length} remaining)
+              {filteredTexts.length} {t('sgBeforeCount')} ({allTexts.length - completedTextIds.length} {t('sgAfterCount')})
             </Text>
             {/* Audio status indicator */}
             {!audioInitialized && (
@@ -444,7 +450,7 @@ export default function SuggestedTextScreen({ navigation }) {
                 style={styles.searchInput}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder={`Search ${selectedLanguage === 'french' ? 'French' : 'Ewe'} texts...`}
+                placeholder={`${t('sgSearchPlaceholder')} ${selectedLanguage === 'french' ? t('sgSelectedLanguage') : 'Ewe'} ${t('sgSearchPlaceholderAfter')}`}
                 placeholderTextColor="#9ca3af"
               />
               {searchQuery.length > 0 && (
@@ -470,7 +476,7 @@ export default function SuggestedTextScreen({ navigation }) {
             {loading && allTexts.length === 0 ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#fff" />
-                <Text style={styles.loadingText}>Loading texts...</Text>
+                <Text style={styles.loadingText}>{t('sgLoadingText')}</Text>
               </View>
             ) : (
               <FlatList

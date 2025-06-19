@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function CustomTextScreen({ navigation }) {
+  const { t } = useLanguage();
   const [customText, setCustomText] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('french');
 
@@ -88,9 +90,10 @@ export default function CustomTextScreen({ navigation }) {
             <View style={styles.content}>
               <View style={styles.header}>
                 <Ionicons name="create" size={50} color="#FFCE00" />
-                <Text style={styles.title}>Write Custom Text</Text>
+                <Text style={styles.title}>{t('wrTitle')}</Text>
                 <Text style={styles.subtitle}>
-                  Enter the {selectedLanguage === 'french' ? 'French' : 'Ewe'} sentence you want to record
+                  {/* Enter the {selectedLanguage === 'français' ? 'French' : 'Ewe'} sentence you want to record */}
+                  {t('wrAppSubtitle')}
                 </Text>
               </View>
 
@@ -104,7 +107,8 @@ export default function CustomTextScreen({ navigation }) {
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>
-                    {selectedLanguage === 'french' ? 'French' : 'Ewe'} Text
+                    {/* {selectedLanguage === 'french' ? 'French' : 'Ewe'} Text */}
+                    {t('wrBoxTitle')}
                   </Text>
                   <TextInput
                     style={styles.textInput}
@@ -159,7 +163,7 @@ export default function CustomTextScreen({ navigation }) {
                   style={styles.buttonGradient}
                 >
                   <Ionicons name="arrow-forward" size={24} color="#fff" />
-                  <Text style={styles.buttonText}>Continue to Recording</Text>
+                  <Text style={styles.buttonText}>{t('wrContinueButton')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>

@@ -15,9 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { saveRecording } from '../database/database';
 import { markTextAsCompleted } from '../database/localDatabase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function RecordingScreen({ route, navigation }) {
   const { text, isCustom, language = 'french', textId } = route.params;
+  const { t } = useLanguage();
   
   const [recording, setRecording] = useState(null);
   const [sound, setSound] = useState(null);
@@ -124,12 +126,12 @@ export default function RecordingScreen({ route, navigation }) {
         e.preventDefault();
 
         Alert.alert(
-          'Recording in Progress',
-          'You have an active recording. Do you want to stop it and leave?',
+          t('recRecordingInProgress'),
+          t('recRecordingInProgressDesc'),
           [
-            { text: "Don't leave", style: 'cancel', onPress: () => {} },
+            { text: t('cancel'), style: 'cancel', onPress: () => {} },
             {
-              text: 'Stop & Leave',
+              text: t('recStopAndLeave'),
               style: 'destructive',
               onPress: async () => {
                 try {
@@ -167,7 +169,7 @@ export default function RecordingScreen({ route, navigation }) {
       console.log('Recording started');
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      Alert.alert(t('error'), t('recStartError'));
     }
   };
 
@@ -197,7 +199,7 @@ export default function RecordingScreen({ route, navigation }) {
     } catch (error) {
       console.error('Error stopping recording:', error);
       setRecording(null);
-      Alert.alert('Error', 'Error stopping recording. Please try again.');
+      Alert.alert(t('error'), t('recStopError'));
     }
   };
 
@@ -233,7 +235,7 @@ export default function RecordingScreen({ route, navigation }) {
       });
     } catch (error) {
       console.error('Error playing sound:', error);
-      Alert.alert('Error', 'Failed to play recording.');
+      Alert.alert(t('error'), t('recPlayError'));
       setIsPlaying(false);
       setIsLoadingAudio(false);
     }
@@ -261,7 +263,7 @@ export default function RecordingScreen({ route, navigation }) {
 
   const saveRecordingToDatabase = async () => {
     if (!recordingUri) {
-      Alert.alert('Error', 'No recording found. Please record audio first.');
+      Alert.alert(t('error'), t('recNoRecordingFound'));
       return;
     }
 
@@ -272,25 +274,25 @@ export default function RecordingScreen({ route, navigation }) {
       }
       
       Alert.alert(
-        'Success',
-        'Recording saved successfully to cloud storage!',
+        t('success'),
+        t('recSaveSuccess'),
         [
           {
-            text: 'Record Another',
+            text: t('recRecordAnother'),
             onPress: () => {
               clearRecording();
               scrollViewRef.current?.scrollTo({ y: 0, animated: true });
             },
           },
           {
-            text: 'Go Home',
+            text: t('recGoHome'),
             onPress: () => navigation.navigate('Home'),
           },
         ]
       );
     } catch (error) {
       console.error('Error saving recording:', error);
-      Alert.alert('Error', 'Failed to save recording. Please try again.');
+      Alert.alert(t('error'), t('recSaveError'));
     }
   };
 
@@ -304,14 +306,14 @@ export default function RecordingScreen({ route, navigation }) {
   const progressPercentage = duration > 0 ? (position / duration) * 100 : 0;
 
   const getLanguageDisplayName = () => {
-    return language === 'french' ? 'French' : 'Ewe';
+    return language === 'french' ? t('french') : 'Ewe';
   };
 
   const getInstructionText = () => {
     if (language === 'french') {
-      return 'Read the French text aloud and translate it to Ewe language';
+      return t('recInstructionsFrench');
     } else {
-      return 'Read the Ewe text aloud in Ewe language';
+      return t('recInstructionsEwe');
     }
   };
 
@@ -328,7 +330,7 @@ export default function RecordingScreen({ route, navigation }) {
         >
           <View style={styles.header}>
             <Ionicons name="mic" size={50} color="#FFCE00" />
-            <Text style={styles.title}>Record Audio</Text>
+            <Text style={styles.title}>{t('recTitle')}</Text>
             <Text style={styles.subtitle}>
               {getInstructionText()}
             </Text>
@@ -336,7 +338,7 @@ export default function RecordingScreen({ route, navigation }) {
 
           <View style={styles.textContainer}>
             <View style={styles.textBox}>
-              <Text style={styles.textLabel}>{getLanguageDisplayName()} Text:</Text>
+              <Text style={styles.textLabel}>{getLanguageDisplayName()} {t('recTextLabel')}:</Text>
               <Text style={styles.contentText}>{text}</Text>
             </View>
           </View>
@@ -346,7 +348,7 @@ export default function RecordingScreen({ route, navigation }) {
             <View style={styles.noticeBox}>
               <Ionicons name="information-circle" size={20} color="#f59e0b" />
               <Text style={styles.noticeText}>
-                <Text style={styles.noticeTextBold}>Important:</Text> Your audio recording must be spoken in Ewe language only.
+                <Text style={styles.noticeTextBold}>{t('recImportant')}:</Text> {t('recEweOnlyNotice')}
               </Text>
             </View>
           </View>
@@ -416,8 +418,8 @@ export default function RecordingScreen({ route, navigation }) {
             </Animated.View>
 
             <Text style={styles.recordingStatus}>
-              {isRecording ? 'Recording in Ewe...' : 'Tap to start recording'}
-              <Text style={styles.eweTextBold}> {isRecording ? '' : 'in Ewe'}</Text>
+              {isRecording ? t('recStatusRecording') : t('recTapToStart')}
+              <Text style={styles.eweTextBold}> {isRecording ? '' : t('recInEwe')}</Text>
             </Text>
 
           </View>          
@@ -440,17 +442,17 @@ export default function RecordingScreen({ route, navigation }) {
               ]}
             >
               <View style={styles.playbackHeader}>
-                <Text style={styles.playbackTitle}>Your Ewe Recording</Text>
+                <Text style={styles.playbackTitle}>{t('recYourEweRecording')}</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => {
                     Alert.alert(
-                      'Discard Recording?',
-                      'This will permanently delete your current recording.',
+                      t('recDiscardTitle'),
+                      t('recDiscardMessage'),
                       [
-                        { text: 'Cancel', style: 'cancel' },
+                        { text: t('cancel'), style: 'cancel' },
                         {
-                          text: 'Yes, Discard',
+                          text: t('recYesDiscard'),
                           style: 'destructive',
                           onPress: clearRecording,
                         },
@@ -463,7 +465,7 @@ export default function RecordingScreen({ route, navigation }) {
               </View>
 
               <Text style={styles.playbackTime}>
-                Duration: {formatTime(duration)} • Position: {formatTime(position)}
+                {t('recDuration')}: {formatTime(duration)} • {t('recPosition')}: {formatTime(position)}
               </Text>
 
               <View style={styles.progressContainer}>
@@ -503,7 +505,7 @@ export default function RecordingScreen({ route, navigation }) {
                     style={styles.saveButtonGradient}
                   >
                     <Ionicons name="save" size={20} color="#fff" />
-                    <Text style={styles.saveButtonText}>Save Recording</Text>
+                    <Text style={styles.saveButtonText}>{t('recSaveRecording')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
