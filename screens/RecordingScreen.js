@@ -273,23 +273,10 @@ export default function RecordingScreen({ route, navigation }) {
         await markTextAsCompleted(textId, language);
       }
       
-      Alert.alert(
-        t('success'),
-        t('recSaveSuccess'),
-        [
-          {
-            text: t('recRecordAnother'),
-            onPress: () => {
-              clearRecording();
-              scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-            },
-          },
-          {
-            text: t('recGoHome'),
-            onPress: () => navigation.navigate('Home'),
-          },
-        ]
-      );
+      // Instead of showing alert, navigate back to SuggestedTextScreen
+      // This will refresh the page and remove the completed text from the list
+      navigation.navigate('SuggestedText');
+      
     } catch (error) {
       console.error('Error saving recording:', error);
       Alert.alert(t('error'), t('recSaveError'));
@@ -607,16 +594,16 @@ const styles = StyleSheet.create({
   },
   waveContainer: {
     position: 'absolute',
-    top: 5, // Adjusted to align with recording button
+    top: 12, // Adjusted to align with recording button
     justifyContent: 'center',
     alignItems: 'center',
-    width: 200,
-    height: 200,
+    width: 150,
+    height: 150,
   },
   wave: {
     position: 'absolute',
-    width: 200,
-    height: 200,
+    width: 150,
+    height: 150,
     top: 0,
     left: 0,
     borderRadius: 100,
@@ -628,7 +615,7 @@ const styles = StyleSheet.create({
   },
   recordButtonContainer: {
     zIndex: 10,
-    marginTop: 50, // Added margin to center properly with waves
+    marginTop: 30, // Added margin to center properly with waves
   },
   recordButton: {
     width: 100,

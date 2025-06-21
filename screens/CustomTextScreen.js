@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,40 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
+import { saveRecording } from '../database/database';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export default function CustomTextScreen({ navigation }) {
   const { t } = useLanguage();
   const [customText, setCustomText] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('french');
+
+  // Recording states
+  const [recording, setRecording] = useState(null);
+  const [sound, setSound] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [recordingUri, setRecordingUri] = useState(null);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  
+  // Success message states
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successFadeAnim] = useState(new Animated.Value(0));
+  
+  // Animations
+  const [pulseAnim] = useState(new Animated.Value(1));
+  const [waveAnim] = useState(new Animated.Value(0));
+  const [playbackSlideAnim] = useState(new Animated.Value(0));
+
+  const scrollViewRef = useRef(null);
 
   const languages = [
     { key: 'french', label: 'French', placeholder: 'Entrez votre texte français ici...' },
@@ -36,43 +61,268 @@ export default function CustomTextScreen({ navigation }) {
     ]
   };
 
-  const handleContinue = () => {
+  // Cleanup function for recording
+  useEffect(() => {
+    let recordingRef = recording;
+    
+    return () => {
+      if (recordingRef) {
+        console.log('Cleaning up recording on component unmount...');
+        recordingRef.getStatusAsync()
+          .then((status) => {
+            if (status.canRecord || status.isRecording) {
+              return recordingRef.stopAndUnloadAsync();
+            } else {
+              console.log('Recording already stopped, skipping cleanup');
+            }
+          })
+          .catch(error => {
+            if (!error.message.includes('already been unloaded')) {
+              console.error('Error cleaning up recording:', error);
+            }
+          });
+      }
+    };
+  }, [recording]);
+
+  // Cleanup function for sound
+  useEffect(() => {
+    return sound
+      ? () => {
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
+
+  useEffect(() => {
+    if (isRecording) {
+      // Pulse animation for recording button
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Wave animation
+      Animated.loop(
+        Animated.timing(waveAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+      waveAnim.setValue(0);
+    }
+  }, [isRecording]);
+
+  // Auto-scroll and animate when playback container appears
+  useEffect(() => {
+    if (recordingUri) {
+      setTimeout(() => {
+        Animated.spring(playbackSlideAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }).start();
+
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } else {
+      playbackSlideAnim.setValue(0);
+    }
+  }, [recordingUri]);
+
+  const startRecording = async () => {
     if (customText.trim().length < 3) {
-      Alert.alert('Error', `Please enter at least 3 characters of ${selectedLanguage === 'french' ? 'French' : 'Ewe'} text.`);
+      Alert.alert('Error', `Please enter at least 3 characters of ${selectedLanguage === 'french' ? 'French' : 'Ewe'} text before recording.`);
       return;
     }
 
-    navigation.navigate('Recording', {
-      text: customText.trim(),
-      isCustom: true,
-      language: selectedLanguage,
-    });
+    try {
+      console.log('Requesting permissions..');
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log('Starting recording..');
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(recording);
+      setIsRecording(true);
+      console.log('Recording started');
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert(t('error'), t('recStartError') || 'Failed to start recording');
+    }
+  };
+
+  const stopRecording = async () => {
+    console.log('Stopping recording..');
+    
+    if (!recording) {
+      console.log('No recording to stop');
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      setIsRecording(false);
+      
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+      
+      const uri = recording.getURI();
+      setRecordingUri(uri);
+      console.log('Recording stopped and stored at', uri);
+      
+      setRecording(null);
+
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      setRecording(null);
+      Alert.alert(t('error'), t('recStopError') || 'Failed to stop recording');
+    }
+  };
+
+  const playSound = async () => {
+    if (!recordingUri) return;
+
+    try {
+      setIsLoadingAudio(true);
+      console.log('Loading Sound');
+      
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: recordingUri },
+        { shouldPlay: false }
+      );
+      
+      setSound(sound);
+      setIsLoadingAudio(false);
+      setIsPlaying(true);
+
+      console.log('Playing Sound');
+      await sound.playAsync();
+      
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          setDuration(status.durationMillis || 0);
+          setPosition(status.positionMillis || 0);
+          
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPosition(0);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error playing sound:', error);
+      Alert.alert(t('error'), t('recPlayError') || 'Failed to play recording');
+      setIsPlaying(false);
+      setIsLoadingAudio(false);
+    }
+  };
+
+  const stopSound = async () => {
+    if (sound) {
+      await sound.stopAsync();
+      setIsPlaying(false);
+      setPosition(0);
+    }
+  };
+
+  const clearRecording = () => {
+    if (sound) {
+      sound.unloadAsync();
+      setSound(null);
+    }
+    setRecordingUri(null);
+    setDuration(0);
+    setPosition(0);
+    setIsPlaying(false);
+  };
+
+  const saveRecordingToDatabase = async () => {
+    if (!recordingUri) {
+      Alert.alert(t('error'), t('recNoRecordingFound') || 'No recording found');
+      return;
+    }
+
+    try {
+      await saveRecording(customText.trim(), recordingUri, true, selectedLanguage);
+      
+      // Show success message
+      setShowSuccessMessage(true);
+      
+      // Animate success message in
+      Animated.timing(successFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+      // Auto-refresh after 2 seconds
+      setTimeout(() => {
+        // Animate success message out
+        Animated.timing(successFadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset everything
+          setShowSuccessMessage(false);
+          clearRecording();
+          setCustomText('');
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        });
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error saving recording:', error);
+      Alert.alert(t('error'), t('recSaveError') || 'Failed to save recording');
+    }
   };
 
   const clearText = () => {
     setCustomText('');
   };
 
-  const renderLanguageTab = (language) => (
-    <TouchableOpacity
-      key={language.key}
-      style={[
-        styles.languageTab,
-        selectedLanguage === language.key && styles.selectedLanguageTab
-      ]}
-      onPress={() => {
-        setSelectedLanguage(language.key);
-        setCustomText(''); // Clear text when switching languages
-      }}
-    >
-      <Text style={[
-        styles.languageTabText,
-        selectedLanguage === language.key && styles.selectedLanguageTabText
-      ]}>
-        {language.label}
-      </Text>
-    </TouchableOpacity>
-  );
+  const formatTime = (millis) => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const progressPercentage = duration > 0 ? (position / duration) * 100 : 0;
+
+  const getLanguageDisplayName = () => {
+    return selectedLanguage === 'french' ? t('french') || 'French' : 'Ewe';
+  };
+
+  const getInstructionText = () => {
+    if (selectedLanguage === 'french') {
+      return t('recInstructionsFrench') || 'Read the French text clearly into the microphone';
+    } else {
+      return t('recInstructionsEwe') || 'Read the Ewe text clearly into the microphone';
+    }
+  };
 
   const currentLanguage = languages.find(lang => lang.key === selectedLanguage);
 
@@ -86,29 +336,24 @@ export default function CustomTextScreen({ navigation }) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollView 
+            ref={scrollViewRef}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.content}>
               <View style={styles.header}>
                 <Ionicons name="create" size={50} color="#FFCE00" />
-                <Text style={styles.title}>{t('wrTitle')}</Text>
+                <Text style={styles.title}>{t('wrTitle') || 'Write & Record'}</Text>
                 <Text style={styles.subtitle}>
-                  {/* Enter the {selectedLanguage === 'français' ? 'French' : 'Ewe'} sentence you want to record */}
-                  {t('wrAppSubtitle')}
+                  {t('wrAppSubtitle') || 'Enter your text and record your pronunciation'}
                 </Text>
               </View>
-
-              {/* Language Tabs */}
-              {/* <View style={styles.languageTabsContainer}>
-                <View style={styles.languageTabsList}>
-                  {languages.map(language => renderLanguageTab(language))}
-                </View>
-              </View> */}
 
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>
-                    {/* {selectedLanguage === 'french' ? 'French' : 'Ewe'} Text */}
-                    {t('wrBoxTitle')}
+                    {t('wrBoxTitle') || `${getLanguageDisplayName()} Text`}
                   </Text>
                   <TextInput
                     style={styles.textInput}
@@ -131,41 +376,200 @@ export default function CustomTextScreen({ navigation }) {
                     )}
                   </View>
                 </View>
-
-                {/* <View style={styles.exampleContainer}>
-                  <Text style={styles.exampleTitle}>Examples:</Text>
-                  {examples[selectedLanguage].map((example, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => setCustomText(example)}
-                      style={styles.exampleButton}
-                    >
-                      <Text style={styles.exampleText}>{example}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View> */}
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.continueButton,
-                  customText.trim().length < 3 && styles.disabledButton
-                ]}
-                onPress={handleContinue}
-                disabled={customText.trim().length < 3}
-              >
-                <LinearGradient
-                  colors={
-                    customText.trim().length >= 3
-                      ? ['#10b981', '#059669']
-                      : ['#006A4E', '#006A4E']
-                  }
-                  style={styles.buttonGradient}
-                >
-                  <Ionicons name="arrow-forward" size={24} color="#fff" />
-                  <Text style={styles.buttonText}>{t('wrContinueButton')}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              {/* Recording Section - Only show if text is entered */}
+              {customText.trim().length >= 3 && (
+                <View style={styles.recordingSection}>
+                  <View style={styles.recordingContainer}>
+                    {/* Wave animation */}
+                    {isRecording && (
+                      <View style={styles.waveContainer}>
+                        <Animated.View
+                          style={[
+                            styles.wave,
+                            {
+                              opacity: waveAnim,
+                              transform: [
+                                {
+                                  scale: waveAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [1, 2],
+                                  }),
+                                },
+                              ],
+                            },
+                          ]}
+                        />
+                        <Animated.View
+                          style={[
+                            styles.wave,
+                            styles.wave2,
+                            {
+                              opacity: waveAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.7, 0],
+                              }),
+                              transform: [
+                                {
+                                  scale: waveAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [1, 1.5],
+                                  }),
+                                },
+                              ],
+                            },
+                          ]}
+                        />
+                      </View>
+                    )}
+
+                    <Animated.View
+                      style={[
+                        styles.recordButtonContainer,
+                        { transform: [{ scale: pulseAnim }] },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.recordButton,
+                          isRecording && styles.recordingButton,
+                        ]}
+                        onPress={isRecording ? stopRecording : startRecording}
+                      >
+                        <Ionicons
+                          name={isRecording ? 'stop' : 'mic'}
+                          size={40}
+                          color="#fff"
+                        />
+                      </TouchableOpacity>
+                    </Animated.View>
+
+                    <Text style={styles.recordingStatus}>
+                      {isRecording ? (t('recStatusRecording') || 'Recording...') : (t('recTapToStart') || 'Tap to start recording')}
+                      <Text style={styles.eweTextBold}> {isRecording ? '' : (t('recInEwe') || 'in Ewe')}</Text>
+                    </Text>
+                  </View>
+
+                  {/* Playback Section */}
+                  {recordingUri && (
+                    <Animated.View 
+                      style={[
+                        styles.playbackContainer,
+                        {
+                          transform: [
+                            {
+                              translateY: playbackSlideAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [50, 0],
+                              }),
+                            },
+                          ],
+                          opacity: playbackSlideAnim,
+                        }
+                      ]}
+                    >
+                      <View style={styles.playbackHeader}>
+                        <Text style={styles.playbackTitle}>{t('recYourEweRecording') || 'Your Recording'}</Text>
+                        <TouchableOpacity
+                          style={styles.closeButton}
+                          onPress={() => {
+                            Alert.alert(
+                              t('recDiscardTitle') || 'Discard Recording',
+                              t('recDiscardMessage') || 'Are you sure you want to discard this recording?',
+                              [
+                                { text: t('cancel') || 'Cancel', style: 'cancel' },
+                                {
+                                  text: t('recYesDiscard') || 'Yes, Discard',
+                                  style: 'destructive',
+                                  onPress: clearRecording,
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Ionicons name="close" size={20} color="#6b7280" />
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.playbackTime}>
+                        {t('recDuration') || 'Duration'}: {formatTime(duration)} • {t('recPosition') || 'Position'}: {formatTime(position)}
+                      </Text>
+
+                      <View style={styles.progressContainer}>
+                        <View style={styles.progressBar}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${progressPercentage}%` },
+                            ]}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.playbackControls}>
+                        <TouchableOpacity
+                          style={styles.playButton}
+                          onPress={isPlaying ? stopSound : playSound}
+                          disabled={isLoadingAudio}
+                        >
+                          {isLoadingAudio ? (
+                            <ActivityIndicator size="small" color="#6366f1" />
+                          ) : (
+                            <Ionicons
+                              name={isPlaying ? 'pause' : 'play'}
+                              size={24}
+                              color="#6366f1"
+                            />
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.saveButton}
+                          onPress={saveRecordingToDatabase}
+                        >
+                          <LinearGradient
+                            colors={['#10b981', '#059669']}
+                            style={styles.saveButtonGradient}
+                          >
+                            <Ionicons name="save" size={20} color="#fff" />
+                            <Text style={styles.saveButtonText}>{t('recSaveRecording') || 'Save Recording'}</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
+                    </Animated.View>
+                  )}
+
+                  {/* Success Message */}
+                  {showSuccessMessage && (
+                    <Animated.View 
+                      style={[
+                        styles.successMessage,
+                        {
+                          opacity: successFadeAnim,
+                          transform: [
+                            {
+                              translateY: successFadeAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [20, 0],
+                              }),
+                            },
+                          ],
+                        }
+                      ]}
+                    >
+                      <View style={styles.successContent}>
+                        <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                        <Text style={styles.successText}>
+                          {t('recSaveSuccess') || 'Recording saved successfully!'}
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.bottomPadding} />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -208,44 +612,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  languageTabsContainer: {
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  languageTabsList: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 25,
-    padding: 4,
-  },
-  languageTab: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginHorizontal: 2,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  selectedLanguageTab: {
-    backgroundColor: '#fff',
-  },
-  languageTabText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  selectedLanguageTabText: {
-    color: '#006A4E',
-  },
   inputContainer: {
-    flex: 1,
-    paddingVertical: 20,
+    marginVertical: 20,
   },
   inputWrapper: {
     backgroundColor: '#fff',
     borderRadius: 15,
     padding: 20,
-    marginBottom: 20,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {
@@ -284,10 +657,69 @@ const styles = StyleSheet.create({
   clearBtn: {
     padding: 5,
   },
-  exampleContainer: {
+  eweTextBold: {
+    fontWeight: '800',
+  },
+  recordingContainer: {
+    alignItems: 'center',
+    paddingBottom: 20,
+    position: 'relative',
+  },
+  waveContainer: {
+    position: 'absolute',
+    top: 8, // Adjusted to align with recording button
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 150,
+    height: 150,
+  },
+  wave: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    top: 0,
+    left: 0,
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  wave2: {
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  recordButtonContainer: {
+    zIndex: 10,
+    marginTop: 30,
+  },
+  recordButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  recordingButton: {
+    backgroundColor: '#dc2626',
+  },
+  recordingStatus: {
+    fontSize: 16,
+    color: '#fff',
+    marginTop: 15,
+    fontWeight: '500',
+  },
+  playbackContainer: {
     backgroundColor: '#fff',
     borderRadius: 15,
     padding: 20,
+    marginTop: 20,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {
@@ -296,41 +728,100 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: '#10b981',
   },
-  exampleTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+  playbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  exampleButton: {
+  playbackTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  closeButton: {
+    padding: 4,
+    borderRadius: 12,
     backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
   },
-  exampleText: {
-    fontSize: 14,
-    color: '#006A4E',
-    fontStyle: 'italic',
+  playbackTime: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 15,
   },
-  continueButton: {
-    marginTop: 20,
+  progressContainer: {
+    marginBottom: 20,
   },
-  disabledButton: {
-    opacity: 0.6,
+  progressBar: {
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+    overflow: 'hidden',
   },
-  buttonGradient: {
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+  },
+  playbackControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  playButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveButton: {
+    flex: 1,
+  },
+  saveButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderRadius: 12,
-    gap: 10,
+    gap: 8,
   },
-  buttonText: {
-    fontSize: 18,
+  saveButtonText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  successMessage: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 10,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: '#10b981',
+  },
+  successContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  successText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  bottomPadding: {
+    height: 60,
   },
 });

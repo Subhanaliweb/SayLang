@@ -28,7 +28,7 @@ export default function HomeScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Ionicons name="mic" size={60} color="#FFCE00" />
+            <Text style={styles.logo}>{t('logo')}</Text>
             <Text style={styles.title}>{t('appTitle')}</Text>
             <Text style={styles.subtitle}>
               {t('appSubtitle')}
@@ -99,11 +99,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
   },
+  logo: {
+    fontFamily: 'Arial',
+    fontSize: 50,
+    fontWeight: 'bold',
+    color: '#FFCE00',
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-    marginTop: 20,
+    marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {

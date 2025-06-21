@@ -15,7 +15,8 @@ export const useLanguage = () => {
 const translations = {
   fr: {
     // Home Screen
-    appTitle: 'Collecteur Audio Ewe',
+    logo: 'G²',
+    appTitle: 'Ton Gbé-Gné',
     appSubtitle: 'Enregistrez votre voix en Ewe pour des phrases françaises',
     writeCustomText: 'Écrire un Texte Personnalisé',
     writeCustomTextDesc: 'Écrivez votre propre phrase française et enregistrez l\'audio',
@@ -60,14 +61,14 @@ const translations = {
     recYourEweRecording: 'Votre Enregistrement Ewe',
     recDuration: 'Durée',
     recPosition: 'Position',
-    recSaveRecording: 'Sauvegarder l\'Enregistrement',
+    recSaveRecording: 'Sauvegarder',
     recDiscardTitle: 'Supprimer l\'Enregistrement?',
     recDiscardMessage: 'Cela supprimera définitivement votre enregistrement actuel.',
     recYesDiscard: 'Oui, Supprimer',
     recRecordAnother: 'Enregistrer un Autre',
     recGoHome: 'Aller à l\'Accueil',
     recNoRecordingFound: 'Aucun enregistrement trouvé. Veuillez d\'abord enregistrer l\'audio.',
-    recSaveSuccess: 'Enregistrement sauvegardé avec succès dans le stockage cloud!',
+    recSaveSuccess: 'Enregistrement enregistré avec succès !',
     recSaveError: 'Échec de la sauvegarde de l\'enregistrement. Veuillez réessayer.',
     recStartError: 'Échec du démarrage de l\'enregistrement. Veuillez réessayer.',
     recStopError: 'Erreur lors de l\'arrêt de l\'enregistrement. Veuillez réessayer.',
@@ -95,7 +96,8 @@ const translations = {
   },
   en: {
     // Home Screen
-    appTitle: 'Ewe Audio Collector',
+    logo: 'G²',
+    appTitle: 'Your Gbé-Gné',
     appSubtitle: 'Record your voice in Ewe for French sentences',
     writeCustomText: 'Write Custom Text',
     writeCustomTextDesc: 'Write your own French sentence and record audio',
@@ -146,7 +148,7 @@ const translations = {
     recRecordAnother: 'Record Another',
     recGoHome: 'Go Home',
     recNoRecordingFound: 'No recording found. Please record audio first.',
-    recSaveSuccess: 'Recording saved successfully to cloud storage!',
+    recSaveSuccess: 'Recording saved successfully!',
     recSaveError: 'Failed to save recording. Please try again.',
     recStartError: 'Failed to start recording. Please try again.',
     recStopError: 'Error stopping recording. Please try again.',
