@@ -1,22 +1,19 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-
+import { TouchableOpacity, Alert, View, Text } from 'react-native';
 // Import Language Context
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
-
 // Import Language Switch Component
 import LanguageSwitch from './components/LanguageSwitch';
-
 // Import screens
 import HomeScreen from './screens/HomeScreen';
 import CustomTextScreen from './screens/CustomTextScreen';
 import SuggestedTextScreen from './screens/SuggestedTextScreen';
 import RecordingScreen from './screens/RecordingScreen';
-
 // Import Supabase storage initialization
 import { initializeStorage } from './database/database';
 
@@ -26,8 +23,26 @@ const Stack = createStackNavigator();
 // Initialize Supabase storage when app starts
 initializeStorage();
 
+// Login Button Component
+function LoginButton() {
+  const handleLogin = () => {
+    // Add your login logic here
+    Alert.alert('Login', 'Login functionality to be implemented');
+  };
+
+  return (
+    <TouchableOpacity 
+      onPress={handleLogin} 
+      style={{ marginRight: 15 }}
+    >
+      <Ionicons name="person-circle-outline" size={28} color="#fff" />
+    </TouchableOpacity>
+  );
+}
+
 function HomeStack() {
   const { t } = useLanguage();
+  const navigation = useNavigation(); // Add this import at top: import { useNavigation } from '@react-navigation/native';
   
   return (
     <Stack.Navigator
@@ -39,28 +54,43 @@ function HomeStack() {
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        headerRight: () => <LanguageSwitch />,
+        headerRight: () => (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <LanguageSwitch />
+            <LoginButton />
+          </View>
+        ),
+      }}
+      listeners={{
+        tabPress: (e) => {
+          // This will trigger the back animation to Home
+          e.preventDefault();
+          navigation.popToTop();
+        },
       }}
     >
       <Stack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ title: 'Gbé-Gné' }}
+        options={{ 
+          title: '',
+          headerLeft: () => null, // Remove back button from Home
+        }}
       />
       <Stack.Screen
         name="CustomText"
         component={CustomTextScreen}
-        options={{ title: t('customText') }}
+        options={{ title: '' }}
       />
       <Stack.Screen
         name="SuggestedText"
         component={SuggestedTextScreen}
-        options={{ title: t('suggestedText') }}
+        options={{ title: ''}}
       />
       <Stack.Screen
         name="Recording"
         component={RecordingScreen}
-        options={{ title: t('recordAudio') }}
+        options={{ title: '' }}
       />
     </Stack.Navigator>
   );
@@ -68,7 +98,7 @@ function HomeStack() {
 
 function AppContent() {
   const { t, loading } = useLanguage();
-
+  
   // Show loading screen while language preference is being loaded
   if (loading) {
     return null; // You can replace this with a loading screen component
@@ -80,46 +110,90 @@ function AppContent() {
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
-            let iconName;
             if (route.name === 'HomeTab') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'History') {
-              iconName = focused ? 'list' : 'list-outline';
+              return <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />;
             }
-            return <Ionicons name={iconName} size={size} color={color} />;
+            return null;
           },
           tabBarActiveTintColor: '#D21034',
           tabBarInactiveTintColor: 'gray',
           tabBarStyle: {
             backgroundColor: '#fff',
             borderTopWidth: 1,
-            borderTopColor: '#fff',
+            borderTopColor: '#e0e0e0',
+            height: 60,
+            paddingBottom: 8,
+            paddingTop: 8,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
           },
           headerShown: false,
         })}
+        tabBar={(props) => {
+          return (
+            <View style={{
+              flexDirection: 'row',
+              backgroundColor: '#fff',
+              borderTopWidth: 1,
+              borderTopColor: '#e0e0e0',
+              height: 75,
+              alignItems: 'center',
+              paddingBottom: 10,
+              paddingHorizontal: 25,
+            }}>
+              {/* Home tab on the left */}
+              <TouchableOpacity
+  onPress={() => {
+    props.navigation.navigate('HomeTab', {
+      screen: 'Home'
+    });
+  }}                style={{
+                  alignItems: 'center',
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Ionicons 
+                  name={props.state.index === 0 ? 'home' : 'home-outline'} 
+                  size={24} 
+                  color={props.state.index === 0 ? '#D21034' : 'gray'} 
+                />
+                <Text style={{
+                  fontSize: 12,
+                  fontWeight: '600',
+                  color: props.state.index === 0 ? '#D21034' : 'gray',
+                  marginTop: 2,
+                }}>
+                  {t('home')}
+                </Text>
+              </TouchableOpacity>
+              
+              {/* App name in the center */}
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  color: '#006A4E',
+                  letterSpacing: 0.5,
+                }}>
+                  Gbé-Gné
+                </Text>
+              </View>
+              
+              {/* Empty right space for balance */}
+              <View style={{ width: 48 }} />
+            </View>
+          );
+        }}
       >
+        {/* Only Home tab */}
         <Tab.Screen
           name="HomeTab"
           component={HomeStack}
           options={{ title: t('home') }}
         />
-        {/* Uncomment when HistoryScreen is ready
-        <Tab.Screen
-          name="History"
-          component={HistoryScreen}
-          options={{
-            title: t('history'),
-            headerShown: true,
-            headerStyle: {
-              backgroundColor: '#6366f1',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        />
-        */}
       </Tab.Navigator>
     </NavigationContainer>
   );
