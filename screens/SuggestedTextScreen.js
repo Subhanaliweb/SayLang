@@ -16,13 +16,13 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { initLocalDatabase, getCompletedTexts } from '../database/localDatabase';
 import { useLanguage } from '../contexts/LanguageContext';
-
-// Import your JSON files
+import { useAuth } from '../contexts/AuthContext';
 import frenchTexts from '../data/french-texts.json';
 import eweTexts from '../data/ewe-texts.json';
 
 export default function SuggestedTextScreen({ navigation }) {
   const { t } = useLanguage();
+  const { user, anonymousUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('french');
@@ -34,11 +34,11 @@ export default function SuggestedTextScreen({ navigation }) {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [completedTextIds, setCompletedTextIds] = useState([]);
   const [databaseInitialized, setDatabaseInitialized] = useState(false);
+  const [isUpdatingList, setIsUpdatingList] = useState(false);
 
   const languages = ['french', 'ewe'];
   const ITEMS_PER_PAGE = 20;
 
-  // Initialize database first
   useEffect(() => {
     const initializeLocalDb = async () => {
       try {
@@ -53,38 +53,46 @@ export default function SuggestedTextScreen({ navigation }) {
     initializeLocalDb();
   }, []);
 
-  // Load completed texts only after database is initialized
   useEffect(() => {
     const loadCompletedTexts = async () => {
       if (!databaseInitialized) return;
       
       try {
-        const completed = await getCompletedTexts(selectedLanguage);
-        setCompletedTextIds(completed);
+        // Show loading state when updating completed texts
+        setIsUpdatingList(true);
+        
+        const completed = await getCompletedTexts(
+          selectedLanguage,
+          user?.id,
+          anonymousUser?.id
+        );
+        
+        // Small delay to prevent flicker
+        setTimeout(() => {
+          setCompletedTextIds(completed);
+          setIsUpdatingList(false);
+        }, 100);
+        
       } catch (error) {
         console.error('Error loading completed texts:', error);
-        // If there's still an error, set empty array to prevent crashes
         setCompletedTextIds([]);
+        setIsUpdatingList(false);
       }
     };
 
     loadCompletedTexts();
-  }, [databaseInitialized, selectedLanguage]);
+  }, [databaseInitialized, selectedLanguage, user, anonymousUser]);
 
-  // Initialize audio permissions and setup
   useEffect(() => {
     const initializeAudio = async () => {
       try {
         console.log('Initializing audio permissions...');
-        
-        // Request audio permissions
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
           console.log('Audio permission not granted');
           return;
         }
 
-        // Set audio mode for playback
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
@@ -103,17 +111,15 @@ export default function SuggestedTextScreen({ navigation }) {
     initializeAudio();
   }, []);
 
-  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-      setCurrentPage(1); // Reset to first page when searching
+      setCurrentPage(1);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Load texts based on selected language
   useEffect(() => {
     const loadTexts = async () => {
       try {
@@ -127,7 +133,7 @@ export default function SuggestedTextScreen({ navigation }) {
         }
         
         setAllTexts(data);
-        setCurrentPage(1); // Reset to first page when changing language
+        setCurrentPage(1);
       } catch (error) {
         console.error('Error loading texts:', error);
         Alert.alert('Error', 'Failed to load texts. Please try again.');
@@ -140,7 +146,6 @@ export default function SuggestedTextScreen({ navigation }) {
     loadTexts();
   }, [selectedLanguage]);
 
-  // Get available voices
   useEffect(() => {
     const getVoices = async () => {
       try {
@@ -152,52 +157,51 @@ export default function SuggestedTextScreen({ navigation }) {
       }
     };
     
-    // Only get voices after audio is initialized
     if (audioInitialized) {
       getVoices();
     }
 
-    // Cleanup: stop any ongoing speech when component unmounts
     return () => {
       Speech.stop();
     };
   }, [audioInitialized]);
 
-  // Filter texts based on search query
+  // Pre-filter texts to avoid glitch - moved up in the component
+  const preFilteredTexts = useMemo(() => {
+    return allTexts.filter(item => !completedTextIds.includes(item.id));
+  }, [allTexts, completedTextIds]);
+
   const filteredTexts = useMemo(() => {
-    let texts = allTexts.filter(item => !completedTextIds.includes(item.id));
-    
     if (!debouncedSearchQuery.trim()) {
-      return texts;
+      return preFilteredTexts;
     }
     
     const query = debouncedSearchQuery.toLowerCase();
-    return texts.filter(item => 
+    return preFilteredTexts.filter(item => 
       item.text.toLowerCase().includes(query) ||
       item.category.toLowerCase().includes(query)
     );
-  }, [allTexts, debouncedSearchQuery, completedTextIds]);
+  }, [preFilteredTexts, debouncedSearchQuery]);
 
-  // Paginate filtered texts
   const { paginatedTexts, totalPages, hasMore } = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    const paginated = filteredTexts.slice(0, endIndex); // Show cumulative results
+    const paginated = filteredTexts.slice(0, endIndex);
     
     return {
       paginatedTexts: paginated,
       totalPages: Math.ceil(filteredTexts.length / ITEMS_PER_PAGE),
       hasMore: endIndex < filteredTexts.length
     };
-  }, [filteredTexts, currentPage, ITEMS_PER_PAGE]);
+  }, [filteredTexts, currentPage]);
 
-  const handleTextSelect = useCallback((textItem) => {  // Change parameter to full item
+  const handleTextSelect = useCallback((textItem) => {
     Speech.stop();
     setSpeakingId(null);
     
     navigation.navigate('Recording', {
       text: textItem.text,
-      textId: textItem.id,  // Add this line
+      textId: textItem.id,
       isCustom: false,
       language: selectedLanguage,
     });
@@ -205,26 +209,22 @@ export default function SuggestedTextScreen({ navigation }) {
 
   const handleSpeakText = useCallback(async (item) => {
     try {
-      // Check if audio is initialized
       if (!audioInitialized) {
         Alert.alert('Error', 'Audio not initialized. Please try again.');
         return;
       }
 
-      // If already speaking this text, stop it
       if (speakingId === item.id) {
         Speech.stop();
         setSpeakingId(null);
         return;
       }
 
-      // Stop any ongoing speech
       Speech.stop();
       setSpeakingId(item.id);
 
       console.log('Starting speech for item:', item.id);
 
-      // Configure speech options based on language
       const options = {
         language: item.language === 'french' ? 'fr-FR' : 'en-US',
         pitch: 0.9,
@@ -247,7 +247,6 @@ export default function SuggestedTextScreen({ navigation }) {
         },
       };
 
-      // Try to use appropriate voice for French
       if (item.language === 'french' && availableVoices.length > 0) {
         const frenchVoiceOptions = availableVoices.filter(voice => 
           voice.language?.startsWith('fr') || 
@@ -286,7 +285,6 @@ export default function SuggestedTextScreen({ navigation }) {
 
   const handleLanguageChange = useCallback((language) => {
     if (language !== selectedLanguage) {
-      // Stop any ongoing speech when changing language
       Speech.stop();
       setSpeakingId(null);
       setSelectedLanguage(language);
@@ -295,17 +293,11 @@ export default function SuggestedTextScreen({ navigation }) {
     }
   }, [selectedLanguage]);
 
-  // FIXED: Added 't' to dependency array
   const renderTextItem = useCallback(({ item }) => (
     <View style={styles.textItem}>
       <View style={styles.textContent}>
-        {/* {item.category && (
-          <Text style={styles.categoryBadge}>{item.category}</Text>
-        )} */}
         <Text style={styles.frenchText}>{item.text}</Text>
-        
         <View style={styles.actionRow}>
-          {/* Only show Listen button for French language */}
           {selectedLanguage === 'french' && (
             <>
               <TouchableOpacity
@@ -330,22 +322,19 @@ export default function SuggestedTextScreen({ navigation }) {
                   styles.miniButtonText,
                   { 
                     color: !audioInitialized ? "#9ca3af" :
-                           speakingId === item.id ? "#D21034" : "#006A4E" 
+                    speakingId === item.id ? "#D21034" : "#006A4E" 
                   }
                 ]}>
                   {speakingId === item.id ? t('sgstop') : t('sglisten')}
                 </Text>
               </TouchableOpacity>
-
               <View style={styles.buttonDivider} />
             </>
           )}
-
           <TouchableOpacity
             style={[
               styles.miniButton, 
               styles.recordButton,
-              // When Listen button is not shown, make Record button take full width
               selectedLanguage !== 'french' && styles.recordButtonFullWidth
             ]}
             onPress={() => handleTextSelect(item)}
@@ -358,9 +347,8 @@ export default function SuggestedTextScreen({ navigation }) {
         </View>
       </View>
     </View>
-  ), [speakingId, handleSpeakText, handleTextSelect, selectedLanguage, audioInitialized, t]); // FIXED: Added 't'
+  ), [speakingId, handleSpeakText, handleTextSelect, selectedLanguage, audioInitialized, t]);
 
-  // FIXED: Added 't' to dependency array
   const renderLanguageTab = useCallback((language) => (
     <TouchableOpacity
       key={language}
@@ -377,9 +365,8 @@ export default function SuggestedTextScreen({ navigation }) {
         {language === 'french' ? t('sgSelectedLanguage') : 'Ewe'}
       </Text>
     </TouchableOpacity>
-  ), [selectedLanguage, handleLanguageChange, t]); // FIXED: Added 't'
+  ), [selectedLanguage, handleLanguageChange, t]);
 
-  // FIXED: Added 't' to dependency array
   const renderFooter = useCallback(() => {
     if (!hasMore) {
       return (
@@ -397,9 +384,8 @@ export default function SuggestedTextScreen({ navigation }) {
         <Ionicons name="chevron-down" size={16} color="#006A4E" />
       </TouchableOpacity>
     );
-  }, [hasMore, paginatedTexts.length, filteredTexts.length, loadMoreTexts, t]); // FIXED: Added 't'
+  }, [hasMore, paginatedTexts.length, filteredTexts.length, loadMoreTexts, t]);
 
-  // FIXED: Added 't' to dependency array
   const renderEmptyComponent = useCallback(() => (
     <View style={styles.emptyContainer}>
       <Ionicons name="search" size={50} color="#D21034" />
@@ -411,12 +397,15 @@ export default function SuggestedTextScreen({ navigation }) {
         }
       </Text>
     </View>
-  ), [debouncedSearchQuery, t]); // FIXED: Added 't'
+  ), [debouncedSearchQuery, t]);
+
+  // Show loading state while updating list to prevent glitch
+  const shouldShowLoading = loading || isUpdatingList || !databaseInitialized;
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#006A4E', '#FFCE00']}
+        colors={['#006A4E', '#006A4E']}
         style={styles.gradient}
       >
         <View style={styles.content}>
@@ -429,13 +418,11 @@ export default function SuggestedTextScreen({ navigation }) {
             <Text style={styles.statsText}>
               {filteredTexts.length} {t('sgBeforeCount')} ({allTexts.length - completedTextIds.length} {t('sgAfterCount')})
             </Text>
-            {/* Audio status indicator */}
             {!audioInitialized && (
               <Text style={styles.audioStatusText}>
                 Initializing audio...
               </Text>
             )}
-            {/* Database status indicator */}
             {!databaseInitialized && (
               <Text style={styles.audioStatusText}>
                 Setting up database...
@@ -473,30 +460,32 @@ export default function SuggestedTextScreen({ navigation }) {
           </View>
 
           <View style={styles.listContainer}>
-            {loading && allTexts.length === 0 ? (
+            {shouldShowLoading && allTexts.length === 0 ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#fff" />
                 <Text style={styles.loadingText}>{t('sgLoadingText')}</Text>
               </View>
             ) : (
-              <FlatList
-                data={paginatedTexts}
-                renderItem={renderTextItem}
-                keyExtractor={(item) => `${item.language}-${item.id}`}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.textsList}
-                ListEmptyComponent={renderEmptyComponent}
-                ListFooterComponent={renderFooter}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-                initialNumToRender={10}
-                getItemLayout={(data, index) => ({
-                  length: 120, // Approximate item height
-                  offset: 120 * index,
-                  index,
-                })}
-              />
+              <View style={[styles.listWrapper, isUpdatingList && styles.listUpdating]}>
+                <FlatList
+                  data={paginatedTexts}
+                  renderItem={renderTextItem}
+                  keyExtractor={(item) => `${item.language}-${item.id}`}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.textsList}
+                  ListEmptyComponent={renderEmptyComponent}
+                  ListFooterComponent={renderFooter}
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={10}
+                  windowSize={10}
+                  initialNumToRender={10}
+                  getItemLayout={(data, index) => ({
+                    length: 120,
+                    offset: 120 * index,
+                    index,
+                  })}
+                />
+              </View>
             )}
           </View>
         </View>
@@ -589,6 +578,12 @@ const styles = StyleSheet.create({
   listContainer: {
     flex: 1,
   },
+  listWrapper: {
+    flex: 1,
+  },
+  listUpdating: {
+    opacity: 0.7,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -617,17 +612,6 @@ const styles = StyleSheet.create({
   },
   textContent: {
     padding: 16,
-  },
-  categoryBadge: {
-    fontSize: 12,
-    color: '#6366f1',
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    fontWeight: '500',
   },
   frenchText: {
     fontSize: 16,

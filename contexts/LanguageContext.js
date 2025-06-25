@@ -92,7 +92,45 @@ const translations = {
     // Common
     cancel: 'Annuler',
     ok: 'OK',
-    close: 'Fermer'
+    close: 'Fermer',
+
+    // Login
+    authLogin: 'Connexion',
+    authEmail: 'Email',
+    authEmailPlaceholder: 'your-email@example.com',
+    authPassword: 'Mot de passe',
+    authPasswordPlaceholder: 'Entrez votre mot de passe',
+    authLoading: 'Chargement...',
+    authNoAccount: 'Vous n\'avez pas de compte?',
+    authContinueAsGuest: 'Continuer en tant qu\'invité',
+    authGuestUser: 'Utilisateur Invité',
+
+    // Register
+    authRegister: 'S\'inscrire',
+    authConfirmPassword: 'Confirmer le mot de passe',
+    authConfirmPasswordPlaceholder: 'Confirmez votre mot de passe',
+    authFillAllFields: 'Veuillez remplir tous les champs',
+    error: 'Erreur',
+    authPasswordsDontMatch: 'Les mots de passe ne correspondent pas',
+    authHaveAccount: 'Vous avez déjà un compte?',
+    
+    // Guest Authentication
+    authEnterUsername: 'Entrez votre nom d\'utilisateur',
+    chooseUsername: 'Choisissez un nom d\'utilisateur',
+    authUsername: 'Nom d\'utilisateur',
+    authUsernamePlaceholder: 'Entrez votre nom d\'utilisateur',
+    authLoginInstead: 'Se connecter à la place',
+    authAnonymousDesc: 'Continuer en tant qu\'utilisateur anonyme sans compte.',
+    authContinue: 'Continuer',
+
+    // Profile Popup
+    authGuestProfile: 'Profil Invité',
+    authUserProfile: 'Profil Utilisateur',
+    authNickname: 'Utilisateur',
+    authLogout: 'Se Déconnecter',
+    authProfile: 'Profil',
+    authLogoutSuccess: 'Déconnexion réussie',
+    authUserType: 'Type d\'utilisateur',
   },
   en: {
     // Home Screen
@@ -172,7 +210,46 @@ const translations = {
     // Common
     cancel: 'Cancel',
     ok: 'OK',
-    close: 'Close'
+    close: 'Close',
+    
+    // Login
+    authLogin: 'Login',
+    authEmail: 'Email',
+    authEmailPlaceholder: 'your-email@example.com',
+    authPassword: 'Password',
+    authPasswordPlaceholder: 'Enter your password',
+    authLoading: 'Loading...',
+    authNoAccount: 'Don\'t have an account?',
+    authContinueAsGuest: 'Continue as Guest',
+
+    // Register
+    authRegister: 'Register',
+    authConfirmPassword: 'Confirm Password',
+    authConfirmPasswordPlaceholder: 'Confirm your password',
+    authFillAllFields: 'Please fill all fields',
+    error: 'Error',
+    authPasswordsDontMatch: 'Passwords do not match',
+    authHaveAccount: 'Already have an account?',
+    authRegisteredUser: 'Registered User',
+
+    // Guest Authentication
+    authEnterUsername: 'Enter your username',
+    chooseUsername: 'Choose a username',
+    authUsername: 'Username',
+    authUsernamePlaceholder: 'Enter your username',
+    authLoginInstead: 'Login instead',
+    authAnonymousDesc: 'Continue as a anonymous user without an account.',
+    authContinue: 'Continue',
+    authGuestUser: 'Guest User',
+
+    // Profile Popup
+    authGuestProfile: 'Guest Profile',
+    authUserProfile: 'User Profile',
+    authNickname: 'User',
+    authLogout: 'Logout',
+    authProfile: 'Profile',
+    authLogoutSuccess: 'Logged out successfully',
+    authUserType: 'User Type',
   }
 };
 

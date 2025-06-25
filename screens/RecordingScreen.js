@@ -16,10 +16,12 @@ import { Audio } from 'expo-av';
 import { saveRecording } from '../database/database';
 import { markTextAsCompleted } from '../database/localDatabase';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RecordingScreen({ route, navigation }) {
   const { text, isCustom, language = 'french', textId } = route.params;
   const { t } = useLanguage();
+  const { user, anonymousUser } = useAuth();
   
   const [recording, setRecording] = useState(null);
   const [sound, setSound] = useState(null);
@@ -36,7 +38,6 @@ export default function RecordingScreen({ route, navigation }) {
 
   const scrollViewRef = useRef(null);
 
-  // Cleanup function for recording
   useEffect(() => {
     let recordingRef = recording;
     
@@ -60,7 +61,6 @@ export default function RecordingScreen({ route, navigation }) {
     };
   }, [recording]);
 
-  // Cleanup function for sound
   useEffect(() => {
     return sound
       ? () => {
@@ -71,7 +71,6 @@ export default function RecordingScreen({ route, navigation }) {
 
   useEffect(() => {
     if (isRecording) {
-      // Pulse animation for recording button
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -87,7 +86,6 @@ export default function RecordingScreen({ route, navigation }) {
         ])
       ).start();
 
-      // Wave animation - fixed positioning
       Animated.loop(
         Animated.timing(waveAnim, {
           toValue: 1,
@@ -101,7 +99,6 @@ export default function RecordingScreen({ route, navigation }) {
     }
   }, [isRecording]);
 
-  // Auto-scroll and animate when playback container appears
   useEffect(() => {
     if (recordingUri) {
       setTimeout(() => {
@@ -119,7 +116,6 @@ export default function RecordingScreen({ route, navigation }) {
     }
   }, [recordingUri]);
 
-  // Navigation listener for back button
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (isRecording && recording) {
@@ -153,14 +149,14 @@ export default function RecordingScreen({ route, navigation }) {
 
   const startRecording = async () => {
     try {
-      console.log('Requesting permissions..');
+      console.log('Requesting permissions...');
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
+      console.log('Starting recording...');
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
@@ -174,7 +170,7 @@ export default function RecordingScreen({ route, navigation }) {
   };
 
   const stopRecording = async () => {
-    console.log('Stopping recording..');
+    console.log('Stopping recording...');
     
     if (!recording) {
       console.log('No recording to stop');
@@ -195,7 +191,6 @@ export default function RecordingScreen({ route, navigation }) {
       console.log('Recording stopped and stored at', uri);
       
       setRecording(null);
-
     } catch (error) {
       console.error('Error stopping recording:', error);
       setRecording(null);
@@ -212,7 +207,7 @@ export default function RecordingScreen({ route, navigation }) {
       
       const { sound } = await Audio.Sound.createAsync(
         { uri: recordingUri },
-        { shouldPlay: false } // Don't auto-play to avoid issues
+        { shouldPlay: false }
       );
       
       setSound(sound);
@@ -249,7 +244,6 @@ export default function RecordingScreen({ route, navigation }) {
     }
   };  
 
-  // Function to clear current recording
   const clearRecording = () => {
     if (sound) {
       sound.unloadAsync();
@@ -268,15 +262,12 @@ export default function RecordingScreen({ route, navigation }) {
     }
 
     try {
-      await saveRecording(text, recordingUri, isCustom, language);
+      await saveRecording(text, recordingUri, isCustom, language, user, anonymousUser);
       if (textId) {
-        await markTextAsCompleted(textId, language);
+        await markTextAsCompleted(textId, language, user?.id, anonymousUser?.id);
       }
       
-      // Instead of showing alert, navigate back to SuggestedTextScreen
-      // This will refresh the page and remove the completed text from the list
       navigation.navigate('SuggestedText');
-      
     } catch (error) {
       console.error('Error saving recording:', error);
       Alert.alert(t('error'), t('recSaveError'));
@@ -307,7 +298,7 @@ export default function RecordingScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#006A4E', '#FFCE00']}
+        colors={['#006A4E', '#006A4E']}
         style={styles.gradient}
       >
         <ScrollView 
@@ -330,7 +321,6 @@ export default function RecordingScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Important Notice */}
           <View style={styles.noticeContainer}>
             <View style={styles.noticeBox}>
               <Ionicons name="information-circle" size={20} color="#f59e0b" />
@@ -341,7 +331,6 @@ export default function RecordingScreen({ route, navigation }) {
           </View>
 
           <View style={styles.recordingContainer}>
-            {/* Fixed wave animation positioning */}
             {isRecording && (
               <View style={styles.waveContainer}>
                 <Animated.View
@@ -408,7 +397,6 @@ export default function RecordingScreen({ route, navigation }) {
               {isRecording ? t('recStatusRecording') : t('recTapToStart')}
               <Text style={styles.eweTextBold}> {isRecording ? '' : t('recInEwe')}</Text>
             </Text>
-
           </View>          
 
           {recordingUri && (
@@ -594,7 +582,7 @@ const styles = StyleSheet.create({
   },
   waveContainer: {
     position: 'absolute',
-    top: 12, // Adjusted to align with recording button
+    top: 12,
     justifyContent: 'center',
     alignItems: 'center',
     width: 150,
@@ -615,7 +603,7 @@ const styles = StyleSheet.create({
   },
   recordButtonContainer: {
     zIndex: 10,
-    marginTop: 30, // Added margin to center properly with waves
+    marginTop: 30,
   },
   recordButton: {
     width: 100,
@@ -641,21 +629,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 20,
     fontWeight: '500',
-  },
-  reRecordButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 15,
-  },
-  reRecordButtonText: {
-    color: '#6366f1',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
   },
   playbackContainer: {
     backgroundColor: '#fff',

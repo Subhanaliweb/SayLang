@@ -1,12 +1,10 @@
 import { supabase, AUDIO_BUCKET } from '../config/supabase';
 import * as FileSystem from 'expo-file-system';
 
-// Initialize storage - just verify connection and bucket access
 export const initializeStorage = async () => {
   try {
     console.log('Initializing Supabase storage...');
     
-    // Test database connection
     const { data: dbTest, error: dbError } = await supabase
       .from('recordings')
       .select('count')
@@ -19,14 +17,13 @@ export const initializeStorage = async () => {
     
     console.log('✅ Database connection successful');
     
-    // Test direct bucket access (bucket should already exist from dashboard)
     const { data: files, error: bucketError } = await supabase.storage
       .from(AUDIO_BUCKET)
       .list('', { limit: 1 });
     
     if (bucketError) {
       console.error('❌ Bucket access failed:', bucketError);
-      console.error(`Make sure bucket '${AUDIO_BUCKET}' exists in Supabase Dashboard`);
+      console.error(`Make sure bucket '${AUDIO_BUCKET}' exists in Supabase`);
       return false;
     }
     
@@ -40,21 +37,16 @@ export const initializeStorage = async () => {
   }
 };
 
-// Upload audio file to Supabase Storage
 export const uploadAudioFile = async (localUri) => {
   try {
-    // Generate unique filename
     const fileName = `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.m4a`;
     
-    // For React Native, we can upload the file directly using fetch
-    // First, get file info to determine the file size
     const fileInfo = await FileSystem.getInfoAsync(localUri);
     
     if (!fileInfo.exists) {
       throw new Error('Audio file does not exist');
     }
     
-    // Create FormData and append the file
     const formData = new FormData();
     formData.append('file', {
       uri: localUri,
@@ -62,7 +54,6 @@ export const uploadAudioFile = async (localUri) => {
       name: fileName,
     });
     
-    // Get upload URL from Supabase
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(AUDIO_BUCKET)
       .upload(fileName, formData, {
@@ -81,22 +72,21 @@ export const uploadAudioFile = async (localUri) => {
   }
 };
 
-// Save recording to database with cloud storage
-export const saveRecording = async (text, localAudioUri, isCustom = false, language = 'french') => {
+export const saveRecording = async (text, localAudioUri, isCustom = false, language = 'french', user = null, anonymousUser = null) => {
   try {
-    // First upload the audio file to cloud storage
     const audioFilePath = await uploadAudioFile(localAudioUri);
     
-    // Then save the record to database
     const { data, error } = await supabase
       .from('recordings')
       .insert([
         {
-          french_text: text, // Keep the column name for backward compatibility
+          french_text: text,
           audio_file_path: audioFilePath,
           is_custom: isCustom,
-          user_language: 'ewe', // User's native language (Ewe)
-          content_language: language // Language of the content (french/ewe)
+          user_language: 'ewe',
+          content_language: language,
+          user_id: user?.id,
+          anonymous_user_id: anonymousUser?.id
         }
       ])
       .select()
@@ -114,12 +104,14 @@ export const saveRecording = async (text, localAudioUri, isCustom = false, langu
   }
 };
 
-// Get all recordings from cloud database
 export const getAllRecordings = async () => {
   try {
     const { data, error } = await supabase
       .from('recordings')
-      .select('*')
+      .select(`
+        *,
+        anonymous_users:username
+      `)
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -133,10 +125,8 @@ export const getAllRecordings = async () => {
   }
 };
 
-// Delete recording from both database and storage
 export const deleteRecording = async (id, audioFilePath) => {
   try {
-    // Delete from storage first
     if (audioFilePath) {
       const { error: storageError } = await supabase.storage
         .from(AUDIO_BUCKET)
@@ -144,11 +134,9 @@ export const deleteRecording = async (id, audioFilePath) => {
       
       if (storageError) {
         console.error('Error deleting audio file:', storageError);
-        // Continue with database deletion even if storage deletion fails
       }
     }
     
-    // Delete from database
     const { error: dbError } = await supabase
       .from('recordings')
       .delete()
@@ -166,12 +154,11 @@ export const deleteRecording = async (id, audioFilePath) => {
   }
 };
 
-// Get signed URL for audio playback
 export const getAudioPlaybackUrl = async (audioFilePath) => {
   try {
     const { data, error } = await supabase.storage
       .from(AUDIO_BUCKET)
-      .createSignedUrl(audioFilePath, 3600); // URL expires in 1 hour
+      .createSignedUrl(audioFilePath, 3600);
     
     if (error) {
       throw error;
@@ -184,7 +171,6 @@ export const getAudioPlaybackUrl = async (audioFilePath) => {
   }
 };
 
-// Check connection to Supabase
 export const checkConnection = async () => {
   try {
     const { data, error } = await supabase
@@ -201,5 +187,5 @@ export const checkConnection = async () => {
   } catch (error) {
     console.error('Supabase connection error:', error);
     return false;
-  }
+}
 };

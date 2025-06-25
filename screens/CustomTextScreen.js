@@ -18,9 +18,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { saveRecording } from '../database/database';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CustomTextScreen({ navigation }) {
   const { t } = useLanguage();
+  const { user, anonymousUser } = useAuth();
   const [customText, setCustomText] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('french');
 
@@ -43,23 +45,16 @@ export default function CustomTextScreen({ navigation }) {
   const [waveAnim] = useState(new Animated.Value(0));
   const [playbackSlideAnim] = useState(new Animated.Value(0));
 
+  // References for animations to allow stopping
+  const pulseAnimationRef = useRef(null);
+  const waveAnimationRef = useRef(null);
+
   const scrollViewRef = useRef(null);
 
   const languages = [
     { key: 'french', label: 'French', placeholder: 'Entrez votre texte français ici...' },
     { key: 'ewe', label: 'Ewe', placeholder: 'Ŋlɔ wò Ewe nyawo ɖe afi sia...' }
   ];
-
-  const examples = {
-    french: [
-      'Bonjour, comment allez-vous?',
-      'Je suis très heureux de vous rencontrer.'
-    ],
-    ewe: [
-      'Ndi, aleke nèle?',
-      'Dzidzɔ gã aɖe dom be medo go wò.'
-    ]
-  };
 
   // Cleanup function for recording
   useEffect(() => {
@@ -94,10 +89,42 @@ export default function CustomTextScreen({ navigation }) {
       : undefined;
   }, [sound]);
 
+  // Prevent navigation if recording is in progress
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (isRecording && recording) {
+        e.preventDefault();
+
+        Alert.alert(
+          t('recRecordingInProgress') || 'Recording in Progress',
+          t('recRecordingInProgressDesc') || 'You are currently recording. Would you like to stop the recording and leave?',
+          [
+            { text: t('cancel') || 'Cancel', style: 'cancel', onPress: () => {} },
+            {
+              text: t('recStopAndLeave') || 'Stop and Leave',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  await stopRecording();
+                } catch (error) {
+                  console.error('Error stopping recording:', error);
+                } finally {
+                  navigation.dispatch(e.data.action);
+                }
+              },
+            },
+          ]
+        );
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isRecording, recording]);
+
   useEffect(() => {
     if (isRecording) {
       // Pulse animation for recording button
-      Animated.loop(
+      pulseAnimationRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.2,
@@ -110,20 +137,37 @@ export default function CustomTextScreen({ navigation }) {
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      pulseAnimationRef.current.start();
 
       // Wave animation
-      Animated.loop(
+      waveAnimationRef.current = Animated.loop(
         Animated.timing(waveAnim, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         })
-      ).start();
+      );
+      waveAnimationRef.current.start();
     } else {
+      // Stop animations and reset values
+      if (pulseAnimationRef.current) {
+        pulseAnimationRef.current.stop();
+        pulseAnimationRef.current = null;
+      }
+      if (waveAnimationRef.current) {
+        waveAnimationRef.current.stop();
+        waveAnimationRef.current = null;
+      }
       pulseAnim.setValue(1);
       waveAnim.setValue(0);
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (pulseAnimationRef.current) pulseAnimationRef.current.stop();
+      if (waveAnimationRef.current) waveAnimationRef.current.stop();
+    };
   }, [isRecording]);
 
   // Auto-scroll and animate when playback container appears
@@ -146,19 +190,22 @@ export default function CustomTextScreen({ navigation }) {
 
   const startRecording = async () => {
     if (customText.trim().length < 3) {
-      Alert.alert('Error', `Please enter at least 3 characters of ${selectedLanguage === 'french' ? 'French' : 'Ewe'} text before recording.`);
+      Alert.alert(
+        t('error') || 'Error',
+        t('wrMinLengthError') || `Please enter at least 3 characters of ${selectedLanguage === 'french' ? 'French' : 'Ewe'} text before recording.`
+      );
       return;
     }
 
     try {
-      console.log('Requesting permissions..');
+      console.log('Requesting permissions...');
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
+      console.log('Starting recording...');
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
@@ -167,12 +214,12 @@ export default function CustomTextScreen({ navigation }) {
       console.log('Recording started');
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert(t('error'), t('recStartError') || 'Failed to start recording');
+      Alert.alert(t('error') || 'Error', t('recStartError') || 'Failed to start recording');
     }
   };
 
   const stopRecording = async () => {
-    console.log('Stopping recording..');
+    console.log('Stopping recording...');
     
     if (!recording) {
       console.log('No recording to stop');
@@ -193,11 +240,10 @@ export default function CustomTextScreen({ navigation }) {
       console.log('Recording stopped and stored at', uri);
       
       setRecording(null);
-
     } catch (error) {
       console.error('Error stopping recording:', error);
       setRecording(null);
-      Alert.alert(t('error'), t('recStopError') || 'Failed to stop recording');
+      Alert.alert(t('error') || 'Error', t('recStopError') || 'Failed to stop recording');
     }
   };
 
@@ -233,7 +279,7 @@ export default function CustomTextScreen({ navigation }) {
       });
     } catch (error) {
       console.error('Error playing sound:', error);
-      Alert.alert(t('error'), t('recPlayError') || 'Failed to play recording');
+      Alert.alert(t('error') || 'Error', t('recPlayError') || 'Failed to play recording');
       setIsPlaying(false);
       setIsLoadingAudio(false);
     }
@@ -260,12 +306,12 @@ export default function CustomTextScreen({ navigation }) {
 
   const saveRecordingToDatabase = async () => {
     if (!recordingUri) {
-      Alert.alert(t('error'), t('recNoRecordingFound') || 'No recording found');
+      Alert.alert(t('error') || 'Error', t('recNoRecordingFound') || 'No recording found');
       return;
     }
 
     try {
-      await saveRecording(customText.trim(), recordingUri, true, selectedLanguage);
+      await saveRecording(customText.trim(), recordingUri, true, selectedLanguage, user, anonymousUser);
       
       // Show success message
       setShowSuccessMessage(true);
@@ -290,12 +336,14 @@ export default function CustomTextScreen({ navigation }) {
           clearRecording();
           setCustomText('');
           scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+          // Optional: Comment out or change navigation to stay on CustomText
+          // navigation.navigate('SuggestedText');
         });
       }, 2000);
 
     } catch (error) {
       console.error('Error saving recording:', error);
-      Alert.alert(t('error'), t('recSaveError') || 'Failed to save recording');
+      Alert.alert(t('error') || 'Error', t('recSaveError') || 'Failed to save recording');
     }
   };
 
@@ -329,7 +377,7 @@ export default function CustomTextScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#006A4E', '#FFCE00']}
+        colors={['#006A4E', '#006A4E']}
         style={styles.gradient}
       >
         <KeyboardAvoidingView
@@ -350,6 +398,28 @@ export default function CustomTextScreen({ navigation }) {
                 </Text>
               </View>
 
+              {/* <View style={styles.languageTabsContainer}>
+                {languages.map(lang => (
+                  <TouchableOpacity
+                    key={lang.key}
+                    style={[
+                      styles.languageTab,
+                      selectedLanguage === lang.key && styles.selectedLanguageTab
+                    ]}
+                    onPress={() => setSelectedLanguage(lang.key)}
+                    accessibilityLabel={t(lang.key) || lang.label}
+                    accessibilityHint={t(`select${lang.label}Language`) || `Select ${lang.label} language for text input`}
+                  >
+                    <Text style={[
+                      styles.languageTabText,
+                      selectedLanguage === lang.key && styles.selectedLanguageTabText
+                    ]}>
+                      {lang.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View> */}
+
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>
@@ -364,13 +434,20 @@ export default function CustomTextScreen({ navigation }) {
                     multiline
                     textAlignVertical="top"
                     maxLength={500}
+                    accessibilityLabel={t('textInput') || 'Text input for recording'}
+                    accessibilityHint={t('textInputHint') || 'Enter your text to record'}
                   />
                   <View style={styles.inputFooter}>
                     <Text style={styles.characterCount}>
                       {customText.length}/500
                     </Text>
                     {customText.length > 0 && (
-                      <TouchableOpacity onPress={clearText} style={styles.clearBtn}>
+                      <TouchableOpacity 
+                        onPress={clearText} 
+                        style={styles.clearBtn}
+                        accessibilityLabel={t('clearText') || 'Clear text'}
+                        accessibilityHint={t('clearTextHint') || 'Remove all text from the input field'}
+                      >
                         <Ionicons name="close-circle" size={20} color="#ef4444" />
                       </TouchableOpacity>
                     )}
@@ -436,6 +513,8 @@ export default function CustomTextScreen({ navigation }) {
                           isRecording && styles.recordingButton,
                         ]}
                         onPress={isRecording ? stopRecording : startRecording}
+                        accessibilityLabel={isRecording ? (t('stopRecording') || 'Stop recording') : (t('startRecording') || 'Start recording')}
+                        accessibilityHint={isRecording ? (t('stopRecordingHint') || 'Stop the current recording') : (t('startRecordingHint') || 'Begin recording your text')}
                       >
                         <Ionicons
                           name={isRecording ? 'stop' : 'mic'}
@@ -446,8 +525,14 @@ export default function CustomTextScreen({ navigation }) {
                     </Animated.View>
 
                     <Text style={styles.recordingStatus}>
-                      {isRecording ? (t('recStatusRecording') || 'Recording...') : (t('recTapToStart') || 'Tap to start recording')}
-                      <Text style={styles.eweTextBold}> {isRecording ? '' : (t('recInEwe') || 'in Ewe')}</Text>
+                      {isRecording 
+                        ? (t('recStatusRecording') || 'Recording...')
+                        : (t('recTapToStart') || 'Tap to start recording')}
+                      {!isRecording && (
+                        <Text style={styles.eweTextBold}>
+                          {' '}{t('recInEwe') || `in ${getLanguageDisplayName()}`}
+                        </Text>
+                      )}
                     </Text>
                   </View>
 
@@ -470,7 +555,9 @@ export default function CustomTextScreen({ navigation }) {
                       ]}
                     >
                       <View style={styles.playbackHeader}>
-                        <Text style={styles.playbackTitle}>{t('recYourEweRecording') || 'Your Recording'}</Text>
+                        <Text style={styles.playbackTitle}>
+                          {t('recYourRecording') || `Your ${getLanguageDisplayName()} Recording`}
+                        </Text>
                         <TouchableOpacity
                           style={styles.closeButton}
                           onPress={() => {
@@ -487,6 +574,8 @@ export default function CustomTextScreen({ navigation }) {
                               ]
                             );
                           }}
+                          accessibilityLabel={t('discardRecording') || 'Discard recording'}
+                          accessibilityHint={t('discardRecordingHint') || 'Remove the current recording'}
                         >
                           <Ionicons name="close" size={20} color="#6b7280" />
                         </TouchableOpacity>
@@ -512,6 +601,8 @@ export default function CustomTextScreen({ navigation }) {
                           style={styles.playButton}
                           onPress={isPlaying ? stopSound : playSound}
                           disabled={isLoadingAudio}
+                          accessibilityLabel={isPlaying ? (t('pausePlayback') || 'Pause playback') : (t('playRecording') || 'Play recording')}
+                          accessibilityHint={isPlaying ? (t('pausePlaybackHint') || 'Pause the current recording playback') : (t('playRecordingHint') || 'Play the recorded audio')}
                         >
                           {isLoadingAudio ? (
                             <ActivityIndicator size="small" color="#6366f1" />
@@ -527,13 +618,17 @@ export default function CustomTextScreen({ navigation }) {
                         <TouchableOpacity
                           style={styles.saveButton}
                           onPress={saveRecordingToDatabase}
+                          accessibilityLabel={t('saveRecording') || 'Save recording'}
+                          accessibilityHint={t('saveRecordingHint') || 'Save the current recording to your collection'}
                         >
                           <LinearGradient
                             colors={['#10b981', '#059669']}
                             style={styles.saveButtonGradient}
                           >
                             <Ionicons name="save" size={20} color="#fff" />
-                            <Text style={styles.saveButtonText}>{t('recSaveRecording') || 'Save Recording'}</Text>
+                            <Text style={styles.saveButtonText}>
+                              {t('recSaveRecording') || 'Save Recording'}
+                            </Text>
                           </LinearGradient>
                         </TouchableOpacity>
                       </View>
@@ -612,8 +707,34 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  languageTabsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  languageTab: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginHorizontal: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  selectedLanguageTab: {
+    backgroundColor: '#fff',
+  },
+  languageTabText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  selectedLanguageTabText: {
+    color: '#006A4E',
+  },
   inputContainer: {
     marginVertical: 20,
+    marginTop: 15,
   },
   inputWrapper: {
     backgroundColor: '#fff',
@@ -667,7 +788,7 @@ const styles = StyleSheet.create({
   },
   waveContainer: {
     position: 'absolute',
-    top: 8, // Adjusted to align with recording button
+    top: 8,
     justifyContent: 'center',
     alignItems: 'center',
     width: 150,

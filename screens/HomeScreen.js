@@ -20,7 +20,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#006A4E', '#FFCE00']}
+        colors={['#006A4E', '#006A4E']}
         style={styles.gradient}
       >
         <ScrollView 
