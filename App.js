@@ -16,6 +16,7 @@ import RecordingScreen from './screens/RecordingScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import AnonymousScreen from './screens/AnonymousScreen';
+import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import { initializeStorage } from './database/database';
 
 const Tab = createBottomTabNavigator();
@@ -237,6 +238,13 @@ function AuthStack() {
         component={AnonymousScreen} 
         options={{ 
           title: t('authContinueAsGuest')
+        }} 
+      />
+      <Stack.Screen 
+        name="EmailVerification" 
+        component={EmailVerificationScreen} 
+        options={{ 
+          title: t('authEmailVerification')
         }} 
       />
       <Stack.Screen 

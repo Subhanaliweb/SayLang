@@ -68,7 +68,7 @@ const translations = {
     recRecordAnother: 'Enregistrer un Autre',
     recGoHome: 'Aller à l\'Accueil',
     recNoRecordingFound: 'Aucun enregistrement trouvé. Veuillez d\'abord enregistrer l\'audio.',
-    recSaveSuccess: 'Enregistrement enregistré avec succès !',
+    recSaveSuccess: 'Enregistrement enregistré avec succès !',
     recSaveError: 'Échec de la sauvegarde de l\'enregistrement. Veuillez réessayer.',
     recStartError: 'Échec du démarrage de l\'enregistrement. Veuillez réessayer.',
     recStopError: 'Erreur lors de l\'arrêt de l\'enregistrement. Veuillez réessayer.',
@@ -102,8 +102,8 @@ const translations = {
     authPasswordPlaceholder: 'Entrez votre mot de passe',
     authLoading: 'Chargement...',
     authNoAccount: 'Vous n\'avez pas de compte?',
-    authContinueAsGuest: 'Continuer en tant qu\'invité',
-    authGuestUser: 'Utilisateur Invité',
+    authContinueAsGuest: 'Continuer en tant qu\'anonyme',
+    authGuestUser: 'Utilisateur anonyme',
 
     // Register
     authRegister: 'S\'inscrire',
@@ -113,7 +113,15 @@ const translations = {
     error: 'Erreur',
     authPasswordsDontMatch: 'Les mots de passe ne correspondent pas',
     authHaveAccount: 'Vous avez déjà un compte?',
-    
+    authWeakPassword: 'Mot de passe faible.',
+    authFairPassword: 'Mot de passe moyen.',
+    authGoodPassword: 'Bon mot de passe.',
+    authStrongPassword: 'Mot de passe fort.',
+    authPasswordsDontMatch: 'Les mots de passe ne correspondent pas',
+    authPasswordTooShort: 'Le mot de passe est trop court. Il doit comporter au moins 6 caractères.',
+    authEmailVerification: 'Vérification de l\'email',
+    success: 'Succès',
+
     // Guest Authentication
     authEnterUsername: 'Entrez votre nom d\'utilisateur',
     chooseUsername: 'Choisissez un nom d\'utilisateur',
@@ -131,6 +139,14 @@ const translations = {
     authProfile: 'Profil',
     authLogoutSuccess: 'Déconnexion réussie',
     authUserType: 'Type d\'utilisateur',
+
+    // Email Verification Screen
+    authCheckYourEmail: 'Vérifiez votre email',
+    authVerificationSent: 'Nous avons envoyé un lien de vérification à :',
+    authEmailVerificationInstructions: 'Cliquez sur le lien dans votre email pour vérifier votre compte et terminer votre inscription.',
+    authBackToLogin: 'Retour à la connexion',
+    authEmailNotFound: 'Adresse email non trouvée',
+    authVerificationEmailSent: 'Email de vérification envoyé ! Veuillez vérifier votre boîte de réception et votre dossier spam.',
   },
   en: {
     // Home Screen
@@ -220,7 +236,7 @@ const translations = {
     authPasswordPlaceholder: 'Enter your password',
     authLoading: 'Loading...',
     authNoAccount: 'Don\'t have an account?',
-    authContinueAsGuest: 'Continue as Guest',
+    authContinueAsGuest: 'Continue as Anonymous',
 
     // Register
     authRegister: 'Register',
@@ -231,6 +247,14 @@ const translations = {
     authPasswordsDontMatch: 'Passwords do not match',
     authHaveAccount: 'Already have an account?',
     authRegisteredUser: 'Registered User',
+    authWeakPassword: 'Weak password.',
+    authFairPassword: 'Fair password.',
+    authGoodPassword: 'Good password.',
+    authStrongPassword: 'Strong password.',
+    authPasswordsDontMatch: 'Passwords do not match',
+    authPasswordTooShort: 'Password is too short. It must be at least 6 characters long.',
+    authEmailVerification: 'Email Verification',
+    success: 'Success',
 
     // Guest Authentication
     authEnterUsername: 'Enter your username',
@@ -240,16 +264,24 @@ const translations = {
     authLoginInstead: 'Login instead',
     authAnonymousDesc: 'Continue as a anonymous user without an account.',
     authContinue: 'Continue',
-    authGuestUser: 'Guest User',
+    authGuestUser: 'Anonymous User',
 
     // Profile Popup
-    authGuestProfile: 'Guest Profile',
+    authGuestProfile: 'Anonymous Profile',
     authUserProfile: 'User Profile',
     authNickname: 'User',
     authLogout: 'Logout',
     authProfile: 'Profile',
     authLogoutSuccess: 'Logged out successfully',
     authUserType: 'User Type',
+
+    // Email Verification Screen
+    authCheckYourEmail: 'Check Your Email',
+    authVerificationSent: 'We\'ve sent a verification link to:',
+    authEmailVerificationInstructions: 'Click the link in your email to verify your account and complete your registration.',
+    authBackToLogin: 'Back to Login',
+    authEmailNotFound: 'Email address not found',
+    authVerificationEmailSent: 'Verification email sent! Please check your inbox and spam folder.',
   }
 };
 

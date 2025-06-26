@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,9 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
-  Platform
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +31,11 @@ export default function RegisterScreen({ navigation }) {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
 
+  // Refs for inputs
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
+
   const getPasswordStrength = (password) => {
     if (password.length < 6) return { strength: 'weak', color: '#ef4444', text: t('authWeakPassword') };
     if (password.length < 8) return { strength: 'fair', color: '#f97316', text: t('authFairPassword') };
@@ -41,223 +48,288 @@ export default function RegisterScreen({ navigation }) {
   const passwordStrength = getPasswordStrength(password);
   const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
-  const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert(t('error'), t('authFillAllFields'));
-      return;
-    }
+const handleRegister = async () => {
+  if (!email || !password || !confirmPassword) {
+    Alert.alert(t('error'), t('authFillAllFields'));
+    return;
+  }
 
-    if (password !== confirmPassword) {
-      Alert.alert(t('error'), t('authPasswordsDontMatch'));
-      return;
-    }
+  if (password !== confirmPassword) {
+    Alert.alert(t('error'), t('authPasswordsDontMatch'));
+    return;
+  }
 
-    if (password.length < 6) {
-      Alert.alert(t('error'), t('authPasswordTooShort'));
-      return;
-    }
+  if (password.length < 6) {
+    Alert.alert(t('error'), t('authPasswordTooShort'));
+    return;
+  }
 
-    setLoading(true);
-    try {
-      await register(email, password);
-      navigation.navigate('Home');
-    } catch (error) {
-      Alert.alert(t('error'), error.message);
-    } finally {
-      setLoading(false);
+  // Dismiss keyboard before API call
+  Keyboard.dismiss();
+
+  setLoading(true);
+  try {
+    const { data, error } = await register(email, password);
+    
+    // Check if registration was successful and data exists
+    if (data && data.user) {
+      // Check if user needs email confirmation
+      if (!data.user.email_confirmed_at) {
+        // User registered but needs email verification
+        navigation.navigate('EmailVerification', { email: email });
+      } else {
+        // User is confirmed (shouldn't happen with email confirmation enabled)
+        navigation.navigate('HomeTab', { screen: 'Home' });
+      }
+    } else {
+      // Fallback - assume email verification is needed
+      navigation.navigate('EmailVerification', { email: email });
     }
+  } catch (error) {
+    Alert.alert(t('error'), error.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <LinearGradient colors={['#006A4E', '#004A37']} style={styles.gradient}>
-        <KeyboardAvoidingView 
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.appName}>Gbé-Gné</Text>
-            </View>
-
-            {/* Form Section */}
-            <View style={styles.formSection}>
-              <Text style={styles.title}>{t('authRegister')}</Text>
-              
-              {/* Email Input */}
-              <View style={[
-                styles.inputContainer,
-                emailFocused && styles.inputContainerFocused
-              ]}>
-                <View style={styles.inputIconContainer}>
-                  <Ionicons 
-                    name="mail-outline" 
-                    size={20} 
-                    color={emailFocused ? '#006A4E' : '#64748b'} 
-                  />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  placeholder={t('authEmailPlaceholder')}
-                  placeholderTextColor="#94a3b8"
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
-                />
-                {email && email.includes('@') && (
-                  <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
-                )}
-              </View>
-
-              {/* Password Input */}
-              <View style={[
-                styles.inputContainer,
-                passwordFocused && styles.inputContainerFocused
-              ]}>
-                <View style={styles.inputIconContainer}>
-                  <Ionicons 
-                    name="lock-closed-outline" 
-                    size={20} 
-                    color={passwordFocused ? '#006A4E' : '#64748b'} 
-                  />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  placeholder={t('authPasswordPlaceholder')}
-                  placeholderTextColor="#94a3b8"
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
-                />
-                <TouchableOpacity 
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons 
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={20} 
-                    color="#64748b" 
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Password Strength Indicator */}
-              {password.length > 0 && (
-                <View style={styles.passwordStrengthContainer}>
-                  <View style={styles.strengthBar}>
-                    <View 
-                      style={[
-                        styles.strengthFill, 
-                        { 
-                          width: `${Math.min((password.length / 12) * 100, 100)}%`,
-                          backgroundColor: passwordStrength.color 
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
-                    {passwordStrength.text}
-                  </Text>
-                </View>
-              )}
-
-              {/* Confirm Password Input */}
-              <View style={[
-                styles.inputContainer,
-                confirmPasswordFocused && styles.inputContainerFocused,
-                confirmPassword && !passwordsMatch && styles.inputContainerError
-              ]}>
-                <View style={styles.inputIconContainer}>
-                  <Ionicons 
-                    name="shield-checkmark-outline" 
-                    size={20} 
-                    color={confirmPasswordFocused ? '#006A4E' : '#64748b'} 
-                  />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  placeholder={t('authConfirmPasswordPlaceholder')}
-                  placeholderTextColor="#94a3b8"
-                  onFocus={() => setConfirmPasswordFocused(true)}
-                  onBlur={() => setConfirmPasswordFocused(false)}
-                />
-                <TouchableOpacity 
-                  style={styles.eyeButton}
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  <Ionicons 
-                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} 
-                    size={20} 
-                    color="#64748b" 
-                  />
-                </TouchableOpacity>
-                {passwordsMatch && (
-                  <Ionicons name="checkmark-circle" size={20} color="#22c55e" style={{ marginLeft: 8 }} />
-                )}
-              </View>
-
-              {/* Password Match Indicator */}
-              {confirmPassword && !passwordsMatch && (
-                <Text style={styles.errorText}>{t('authPasswordsDontMatch')}</Text>
-              )}
-
-              {/* Register Button */}
-              <TouchableOpacity 
-                style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
-                onPress={handleRegister} 
-                disabled={loading}
+        <SafeAreaView style={styles.safeArea}>
+          <TouchableWithoutFeedback onPress={dismissKeyboard}>
+            <KeyboardAvoidingView 
+              style={styles.keyboardView}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+              <ScrollView 
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
               >
-                <LinearGradient
-                  colors={loading ? ['#94a3b8', '#94a3b8'] : ['#FFCE00', '#FFD700']}
-                  style={styles.buttonGradient}
-                >
-                  {loading ? (
-                    <View style={styles.loadingContainer}>
-                      <Ionicons name="reload-outline" size={20} color="#fff" />
-                      <Text style={styles.buttonText}>{t('authLoading')}</Text>
+                {/* Header Section */}
+                <View style={styles.headerSection}>
+                  <Text style={styles.appName}>Gbé-Gné</Text>
+                </View>
+
+                {/* Form Section */}
+                <View style={styles.formSection}>
+                  <Text style={styles.title}>{t('authRegister')}</Text>
+                  <Text style={styles.subtitle}>Create your account and join our community</Text>
+                  
+                  {/* Email Input */}
+                  <TouchableWithoutFeedback onPress={() => emailInputRef.current?.focus()}>
+                    <View style={[
+                      styles.inputContainer,
+                      emailFocused && styles.inputContainerFocused
+                    ]}>
+                      <View style={styles.inputIconContainer}>
+                        <Ionicons 
+                          name="mail-outline" 
+                          size={20} 
+                          color={emailFocused ? '#006A4E' : '#64748b'} 
+                        />
+                      </View>
+                      <TextInput
+                        ref={emailInputRef}
+                        style={styles.input}
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="email"
+                        textContentType="emailAddress"
+                        placeholder={t('authEmailPlaceholder')}
+                        placeholderTextColor="#94a3b8"
+                        onFocus={() => setEmailFocused(true)}
+                        onBlur={() => setEmailFocused(false)}
+                        returnKeyType="next"
+                        onSubmitEditing={() => passwordInputRef.current?.focus()}
+                        blurOnSubmit={false}
+                      />
+                      {email && email.includes('@') && (
+                        <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                      )}
                     </View>
-                  ) : (
-                    <View style={styles.buttonContent}>
-                      <Ionicons name="person-add-outline" size={20} color="#006A4E" style={styles.buttonIcon} />
-                      <Text style={styles.buttonText}>{t('authRegister')}</Text>
+                  </TouchableWithoutFeedback>
+
+                  {/* Password Input */}
+                  <TouchableWithoutFeedback onPress={() => passwordInputRef.current?.focus()}>
+                    <View style={[
+                      styles.inputContainer,
+                      passwordFocused && styles.inputContainerFocused
+                    ]}>
+                      <View style={styles.inputIconContainer}>
+                        <Ionicons 
+                          name="lock-closed-outline" 
+                          size={20} 
+                          color={passwordFocused ? '#006A4E' : '#64748b'} 
+                        />
+                      </View>
+                      <TextInput
+                        ref={passwordInputRef}
+                        style={styles.input}
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="password"
+                        textContentType="password"
+                        placeholder={t('authPasswordPlaceholder')}
+                        placeholderTextColor="#94a3b8"
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => setPasswordFocused(false)}
+                        returnKeyType="next"
+                        onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+                        blurOnSubmit={false}
+                      />
+                      <TouchableOpacity 
+                        style={styles.eyeButton}
+                        onPress={() => setShowPassword(!showPassword)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons 
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                          size={20} 
+                          color="#64748b" 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableWithoutFeedback>
+
+                  {/* Password Strength Indicator */}
+                  {password.length > 0 && (
+                    <View style={styles.passwordStrengthContainer}>
+                      <View style={styles.strengthBar}>
+                        <View 
+                          style={[
+                            styles.strengthFill, 
+                            { 
+                              width: `${Math.min((password.length / 12) * 100, 100)}%`,
+                              backgroundColor: passwordStrength.color 
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
+                        {passwordStrength.text}
+                      </Text>
                     </View>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>{t('authHaveAccount')} </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.footerLink}>{t('authLogin')}</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+                  {/* Confirm Password Input */}
+                  <TouchableWithoutFeedback onPress={() => confirmPasswordInputRef.current?.focus()}>
+                    <View style={[
+                      styles.inputContainer,
+                      confirmPasswordFocused && styles.inputContainerFocused,
+                      confirmPassword && !passwordsMatch && styles.inputContainerError
+                    ]}>
+                      <View style={styles.inputIconContainer}>
+                        <Ionicons 
+                          name="shield-checkmark-outline" 
+                          size={20} 
+                          color={confirmPasswordFocused ? '#006A4E' : '#64748b'} 
+                        />
+                      </View>
+                      <TextInput
+                        ref={confirmPasswordInputRef}
+                        style={styles.input}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirmPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="password"
+                        textContentType="password"
+                        placeholder={t('authConfirmPasswordPlaceholder')}
+                        placeholderTextColor="#94a3b8"
+                        onFocus={() => setConfirmPasswordFocused(true)}
+                        onBlur={() => setConfirmPasswordFocused(false)}
+                        returnKeyType="done"
+                        onSubmitEditing={handleRegister}
+                      />
+                      <TouchableOpacity 
+                        style={styles.eyeButton}
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons 
+                          name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} 
+                          size={20} 
+                          color="#64748b" 
+                        />
+                      </TouchableOpacity>
+                      {passwordsMatch && (
+                        <Ionicons name="checkmark-circle" size={20} color="#22c55e" style={{ marginLeft: 8 }} />
+                      )}
+                    </View>
+                  </TouchableWithoutFeedback>
+
+                  {/* Password Match Indicator */}
+                  {confirmPassword && !passwordsMatch && (
+                    <Text style={styles.errorText}>{t('authPasswordsDontMatch')}</Text>
+                  )}
+
+                  {/* Register Button */}
+                  <TouchableOpacity 
+                    style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
+                    onPress={handleRegister} 
+                    disabled={loading}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={loading ? ['#94a3b8', '#94a3b8'] : ['#FFCE00', '#FFD700']}
+                      style={styles.buttonGradient}
+                    >
+                      {loading ? (
+                        <View style={styles.loadingContainer}>
+                          <Ionicons name="reload-outline" size={20} color="#fff" />
+                          <Text style={styles.buttonText}>{t('authLoading')}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.buttonContent}>
+                          <Ionicons name="person-add-outline" size={20} color="#006A4E" style={styles.buttonIcon} />
+                          <Text style={styles.buttonText}>{t('authRegister')}</Text>
+                        </View>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Footer */}
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>{t('authHaveAccount')} </Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('Login')} activeOpacity={0.7}>
+                    <Text style={styles.footerLink}>{t('authLogin')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
+        </SafeAreaView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#006A4E', // Add background color to prevent white flash
   },
   gradient: {
     flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent', // Make SafeAreaView transparent
   },
   keyboardView: {
     flex: 1,
@@ -274,28 +346,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginTop: 20,
   },
-  logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 206, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 206, 0, 0.3)',
-  },
   appName: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFCE00',
     marginBottom: 8,
     letterSpacing: 1,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: '#e2e8f0',
-    textAlign: 'center',
   },
 
   // Form Section
@@ -315,6 +371,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1e293b',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
     marginBottom: 32,
   },
 
@@ -328,7 +390,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 60,
   },
   inputContainerFocused: {
     borderColor: '#006A4E',
@@ -350,9 +412,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#1e293b',
+    paddingVertical: 16,
   },
   eyeButton: {
-    padding: 4,
+    padding: 8,
+    marginLeft: 4,
   },
 
   // Password Strength
@@ -408,6 +472,7 @@ const styles = StyleSheet.create({
     color: '#006A4E',
     fontSize: 18,
     fontWeight: 'bold',
+    marginLeft: 8,
   },
   buttonIcon: {
     marginRight: 8,

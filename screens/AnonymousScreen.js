@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,9 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
-  Platform
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +25,9 @@ export default function AnonymousScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [usernameFocused, setUsernameFocused] = useState(false);
 
+  // Ref for input
+  const usernameInputRef = useRef(null);
+
   const handleContinue = async () => {
     if (!username.trim()) {
       Alert.alert(t('error'), t('authEnterUsername'));
@@ -33,6 +38,9 @@ export default function AnonymousScreen({ navigation }) {
       Alert.alert(t('error'), t('authUsernameTooShort'));
       return;
     }
+
+    // Dismiss keyboard before API call
+    Keyboard.dismiss();
 
     setLoading(true);
     try {
@@ -51,136 +59,167 @@ export default function AnonymousScreen({ navigation }) {
     const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
     const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
     const randomNumber = Math.floor(Math.random() * 99) + 1;
-    return `${randomAdjective}${randomNoun}${randomNumber}`;
+    const generatedUsername = `${randomAdjective}${randomNoun}${randomNumber}`;
+    setUsername(generatedUsername);
+    // Focus input after setting username
+    setTimeout(() => {
+      usernameInputRef.current?.focus();
+    }, 100);
+  };
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <LinearGradient colors={['#006A4E', '#004A37']} style={styles.gradient}>
-        <KeyboardAvoidingView 
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.appName}>Gbé-Gné</Text>
-            </View>
-
-            {/* Form Section */}
-            <View style={styles.formSection}>
-              <Text style={styles.title}>{t('authContinueAsGuest')}</Text>
-              
-              {/* Info Card */}
-              <View style={styles.infoCard}>
-                <View style={styles.infoIconContainer}>
-                  <Ionicons name="information-circle" size={24} color="#006A4E" />
+        <SafeAreaView style={styles.safeArea}>
+          <TouchableWithoutFeedback onPress={dismissKeyboard}>
+            <KeyboardAvoidingView 
+              style={styles.keyboardView}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+              <ScrollView 
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
+                {/* Header Section */}
+                <View style={styles.headerSection}>
+                  <Text style={styles.appName}>Gbé-Gné</Text>
                 </View>
-                <View style={styles.infoTextContainer}>
-                  <Text style={styles.infoDescription}>{t('authAnonymousDesc')}</Text>
-                </View>
-              </View>
 
-              {/* Username Input */}
-              <View style={styles.inputSection}>
-                <Text style={styles.inputLabel}>{t('chooseUsername')}</Text>
-                <View style={[
-                  styles.inputContainer,
-                  usernameFocused && styles.inputContainerFocused
-                ]}>
-                  <View style={styles.inputIconContainer}>
-                    <Ionicons 
-                      name="person-outline" 
-                      size={20} 
-                      color={usernameFocused ? '#006A4E' : '#64748b'} 
-                    />
+                {/* Form Section */}
+                <View style={styles.formSection}>
+                  <Text style={styles.title}>{t('authContinueAsGuest')}</Text>
+                  
+                  {/* Info Card */}
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoIconContainer}>
+                      <Ionicons name="information-circle" size={24} color="#006A4E" />
+                    </View>
+                    <View style={styles.infoTextContainer}>
+                      <Text style={styles.infoDescription}>{t('authAnonymousDesc')}</Text>
+                    </View>
                   </View>
-                  <TextInput
-                    style={styles.input}
-                    value={username}
-                    onChangeText={setUsername}
-                    placeholder={t('authUsernamePlaceholder')}
-                    placeholderTextColor="#94a3b8"
-                    onFocus={() => setUsernameFocused(true)}
-                    onBlur={() => setUsernameFocused(false)}
-                    maxLength={20}
-                  />
+
+                  {/* Username Input */}
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>{t('chooseUsername')}</Text>
+                    <TouchableWithoutFeedback onPress={() => usernameInputRef.current?.focus()}>
+                      <View style={[
+                        styles.inputContainer,
+                        usernameFocused && styles.inputContainerFocused
+                      ]}>
+                        <View style={styles.inputIconContainer}>
+                          <Ionicons 
+                            name="person-outline" 
+                            size={20} 
+                            color={usernameFocused ? '#006A4E' : '#64748b'} 
+                          />
+                        </View>
+                        <TextInput
+                          ref={usernameInputRef}
+                          style={styles.input}
+                          value={username}
+                          onChangeText={setUsername}
+                          placeholder={t('authUsernamePlaceholder')}
+                          placeholderTextColor="#94a3b8"
+                          onFocus={() => setUsernameFocused(true)}
+                          onBlur={() => setUsernameFocused(false)}
+                          maxLength={20}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          onSubmitEditing={handleContinue}
+                        />
+                        <TouchableOpacity 
+                          style={styles.randomButton}
+                          onPress={generateRandomUsername}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="dice-outline" size={20} color="#006A4E" />
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableWithoutFeedback>
+                    
+                    {username.length > 0 && (
+                      <Text style={styles.characterCount}>
+                        {username.length}/20 {t('authCharacters')}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Continue Button */}
                   <TouchableOpacity 
-                    style={styles.randomButton}
-                    onPress={() => setUsername(generateRandomUsername())}
+                    style={[
+                      styles.continueButton, 
+                      loading && styles.continueButtonDisabled,
+                      !username.trim() && styles.continueButtonDisabled
+                    ]} 
+                    onPress={handleContinue} 
+                    disabled={loading || !username.trim()}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="dice-outline" size={20} color="#006A4E" />
+                    <LinearGradient
+                      colors={loading || !username.trim() ? ['#94a3b8', '#94a3b8'] : ['#FFCE00', '#FFD700']}
+                      style={styles.buttonGradient}
+                    >
+                      {loading ? (
+                        <View style={styles.loadingContainer}>
+                          <Ionicons name="reload-outline" size={20} color="#fff" />
+                          <Text style={styles.buttonText}>{t('authLoading')}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.buttonContent}>
+                          <Ionicons name="arrow-forward" size={20} color="#006A4E" style={styles.buttonIcon} />
+                          <Text style={styles.buttonText}>{t('authContinue')}</Text>
+                        </View>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {/* Divider */}
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>{t('or')}</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* Login Button */}
+                  <TouchableOpacity 
+                    style={styles.loginButton}
+                    onPress={() => navigation.navigate('Login')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="log-in-outline" size={20} color="#006A4E" style={styles.buttonIcon} />
+                    <Text style={styles.loginButtonText}>{t('authLoginInstead')}</Text>
                   </TouchableOpacity>
                 </View>
-                
-                {username.length > 0 && (
-                  <Text style={styles.characterCount}>
-                    {username.length}/20 {t('authCharacters')}
-                  </Text>
-                )}
-              </View>
 
-              {/* Continue Button */}
-              <TouchableOpacity 
-                style={[
-                  styles.continueButton, 
-                  loading && styles.continueButtonDisabled,
-                  !username.trim() && styles.continueButtonDisabled
-                ]} 
-                onPress={handleContinue} 
-                disabled={loading || !username.trim()}
-              >
-                <LinearGradient
-                  colors={loading || !username.trim() ? ['#94a3b8', '#94a3b8'] : ['#FFCE00', '#FFD700']}
-                  style={styles.buttonGradient}
-                >
-                  {loading ? (
-                    <View style={styles.loadingContainer}>
-                      <Ionicons name="reload-outline" size={20} color="#fff" />
-                      <Text style={styles.buttonText}>{t('authLoading')}</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.buttonContent}>
-                      <Ionicons name="arrow-forward" size={20} color="#006A4E" style={styles.buttonIcon} />
-                      <Text style={styles.buttonText}>{t('authContinue')}</Text>
-                    </View>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>{t('or')}</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Login Button */}
-              <TouchableOpacity 
-                style={styles.loginButton}
-                onPress={() => navigation.navigate('Login')}
-              >
-                <Ionicons name="log-in-outline" size={20} color="#006A4E" style={styles.buttonIcon} />
-                <Text style={styles.loginButtonText}>{t('authLoginInstead')}</Text>
-              </TouchableOpacity>
-            </View>
-
-          </ScrollView>
-        </KeyboardAvoidingView>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
+        </SafeAreaView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#006A4E', // Add background color to prevent white flash
   },
   gradient: {
     flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent', // Make SafeAreaView transparent
   },
   keyboardView: {
     flex: 1,
@@ -303,7 +342,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 56,
   },
   inputContainerFocused: {
     borderColor: '#006A4E',
@@ -321,6 +360,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#1e293b',
+    paddingVertical: 16,
   },
   randomButton: {
     padding: 8,
@@ -361,6 +401,7 @@ const styles = StyleSheet.create({
     color: '#006A4E',
     fontSize: 18,
     fontWeight: 'bold',
+    marginLeft: 8,
   },
   buttonIcon: {
     marginRight: 8,

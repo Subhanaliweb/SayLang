@@ -137,6 +137,8 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFCE00',
   },
   cardContent: {
     alignItems: 'center',
